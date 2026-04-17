@@ -1,35 +1,54 @@
-import { _decorator, Component, director, Node, ProgressBar, Size, Sprite, Tween, tween, UITransform, Vec3, Vec2, EventHandler } from 'cc';
+import { _decorator, Component, director, Node, ProgressBar, Size, Sprite, Tween, tween, UITransform, Vec3, Vec2, Label } from 'cc';
+import { MoneyManager } from './MoneyManager';
+
 const { ccclass, property } = _decorator;
 
 @ccclass('VegClickMoney')
 export class VegClickMoney extends Component {
-    @property({ type: Node }) searchRoot: Node = null;
+    @property({ type: Node, tooltip: 'Корень для поиска VegClick' })
+    searchRoot: Node = null;
 
-    @property({ tooltip: 'Сколько денег добавляет эта ячейка' })
+    @property({ tooltip: 'Сколько денег даёт ячейка' })
     addPerClick: number = 1;
 
-    @property({ tooltip: 'Подъём спрайта по Y' }) liftY: number = 20;
-    @property({ tooltip: 'Время подъёма' }) liftUpTime: number = 0.5;
-    @property({ tooltip: 'Время возврата' }) liftDownTime: number = 0.5;
+    @property({ tooltip: 'Подъём спрайта по Y' }) 
+    liftY: number = 20;
+    
+    @property({ tooltip: 'Время подъёма' }) 
+    liftUpTime: number = 0.5;
+    
+    @property({ tooltip: 'Время возврата' }) 
+    liftDownTime: number = 0.5;
 
-    @property({ type: ProgressBar, tooltip: 'Локальный ProgressBar этой ячейки' })
+    @property({ type: ProgressBar, tooltip: 'Локальный кулдаун' })
     cooldownBar: ProgressBar = null;
 
-    @property({ tooltip: 'Время кулдауна этой ячейки (сек)' })
+    @property({ tooltip: 'Время кулдауна (сек)' })
     cooldownTime: number = 1.0;
 
-    @property({ type: Node }) coinTarget: Node = null;
-    @property({ tooltip: 'Имя монетки в ячейке' }) coinSourceName: string = 'IconCoin';
-    @property({ tooltip: 'Имя монетки в Moneybar' }) coinTargetName: string = 'IconCoin';
+    @property({ type: Node, tooltip: 'Цель полёта монеты (можно оставить пустым)' })
+    coinTarget: Node = null;
 
-    @property({ tooltip: 'Время полёта монетки' }) coinFlyTime: number = 0.4;
-    @property({ tooltip: 'Пауза перед уничтожением' }) coinHoldTime: number = 0.05;
-    @property({ tooltip: 'Ширина монеты при полёте (0 = авто)' }) coinFlyWidth: number = 0;
-    @property({ tooltip: 'Высота монеты при полёте (0 = авто)' }) coinFlyHeight: number = 0;
+    @property({ tooltip: 'Имя монеты в ячейке' }) 
+    coinSourceName: string = 'IconCoin';
+    
+    @property({ tooltip: 'Имя монеты в Moneybar' }) 
+    coinTargetName: string = 'IconCoin';
 
-    // ← Главное поле для связи с MoneyManager
-    @property({ type: EventHandler, tooltip: 'Событие для добавления денег (подключи MoneyManager.addMoney)' })
-    onClicked: EventHandler = new EventHandler();
+    @property({ tooltip: 'Время полёта' }) 
+    coinFlyTime: number = 0.4;
+    
+    @property({ tooltip: 'Пауза перед уничтожением' }) 
+    coinHoldTime: number = 0.05;
+    
+    @property({ tooltip: 'Ширина монеты при полёте (0 = авто)' }) 
+    coinFlyWidth: number = 0;
+    
+    @property({ tooltip: 'Высота монеты при полёте (0 = авто)' }) 
+    coinFlyHeight: number = 0;
+
+    @property({ type: Label, tooltip: 'Label с ценой внутри ячейки' })
+    moneyCountLabel: Label = null;
 
     private _basePositions = new WeakMap<Node, Vec3>();
     private _cooldownActive: boolean = false;
@@ -37,67 +56,81 @@ export class VegClickMoney extends Component {
     private _canvasNode: Node | null = null;
 
     onLoad() {
-        const sceneRoot0 = director.getScene();
-        this._canvasNode = sceneRoot0 ? (this.findFirstNodeByName(sceneRoot0, 'Canvas') ?? sceneRoot0) : null;
+        const scene = director.getScene();
+        this._canvasNode = scene ? (this.findFirstNodeByName(scene, 'Canvas') ?? scene) : null;
 
-        // === ИСПРАВЛЕНИЕ: Логика поиска корня ===
-        let root = this.searchRoot;
-        if (!root) {
-            // Если поле пустое, ищем внутри самого префаба
-            root = this.node;
-            console.log(`[VegClickMoney] Search Root пуст, используем Self: ${this.node.name}`);
-        } else {
-            console.log(`[VegClickMoney] Используем Search Root: ${root.name}`);
+        // 1. Синхронизация цены внутри ячейки
+        if (this.moneyCountLabel) {
+            this.moneyCountLabel.string = this.addPerClick.toString();
+            console.log(`[VegClickMoney] 💰 Установлена цена: ${this.addPerClick}`);
         }
 
-        if (!root) return;
-
-        // === ИСПРАВЛЕНИЕ: Поиск только внутри выбранного корня ===
+        // 2. Настройка кликов
+        let root = this.searchRoot || this.node;
         const vegNodes = this.findAllNodesByName(root, 'VegClick');
-        console.log(`[VegClickMoney] Найдено нод 'VegClick': ${vegNodes.length}`);
+        console.log(`[VegClickMoney] Найдено VegClick нод: ${vegNodes.length}`);
 
         for (const veg of vegNodes) {
-            // Проверка на наличие UITransform (обязательно для кликов!)
-            if (!veg.getComponent(UITransform)) {
-                console.warn(`[VegClickMoney] Нода '${veg.name}' не имеет UITransform! Добавьте его, иначе клики не сработают.`);
-            }
-
             veg.off(Node.EventType.TOUCH_END, this.onVegClick, this);
             veg.on(Node.EventType.TOUCH_END, this.onVegClick, this);
             this.cacheVegBasePositions(veg);
         }
 
-        // Настройка ProgressBar
+        // 3. Настройка кулдауна
         if (!this.cooldownBar) {
             this.cooldownBar = this.node.getComponentInChildren(ProgressBar);
         }
         if (this.cooldownBar) {
             const bg = this.findFirstNodeByName(this.cooldownBar.node, 'LoadingBarBackground');
-            const bgWidth = bg?.getComponent(UITransform)?.contentSize.width;
-            const barWidth = this.cooldownBar.barSprite?.getComponent(UITransform)?.contentSize.width;
-            const width = bgWidth ?? barWidth;
-            if (width && width > 0) this.cooldownBar.totalLength = width;
-
+            const width = bg?.getComponent(UITransform)?.contentSize.width 
+                ?? this.cooldownBar.barSprite?.getComponent(UITransform)?.contentSize.width;
+            
+            if (width && width > 0) {
+                this.cooldownBar.totalLength = width;
+            }
             this.cooldownBar.progress = 1;
             this.cooldownBar.node.active = false;
         }
+
+        // Проверка MoneyManager
+        if (!MoneyManager.instance) {
+            console.error('[VegClickMoney] ❌ MoneyManager не найден в сцене!');
+        } else {
+            console.log('[VegClickMoney] ✅ MoneyManager подключён через singleton');
+        }
     }
 
-    private onVegClick(event?: any) {
-        if (this._cooldownActive) return;
+    private get moneyManager(): MoneyManager | null {
+        return MoneyManager.instance || null;
+    }
+
+    private onVegClick = (event?: any) => {
+        if (this._cooldownActive) {
+            console.log('[VegClickMoney] ⏳ Кулдаун активен');
+            return;
+        }
 
         const vegNode = (event?.currentTarget as Node) ?? (event?.target as Node);
-        if (!vegNode) return;
+        if (!vegNode) {
+            console.warn('[VegClickMoney] ❌ vegNode не найден');
+            return;
+        }
+
+        console.log(`[VegClickMoney] 🖱️ Клик по ${vegNode.name}`);
 
         this.animateVegSprites(vegNode);
         this.animateCoinFly(vegNode);
 
-        // === ОТПРАВКА ДЕНЕГ В MONEYMANAGER ===
-        // Убедитесь, что в инспекторе настроено событие onClicked
-        this.onClicked.emit([this.addPerClick]);
+        // Добавление денег через singleton
+        const manager = this.moneyManager;
+        if (manager) {
+            manager.addMoney(this.addPerClick);
+        } else {
+            console.error('[VegClickMoney] ❌ MoneyManager.instance недоступен!');
+        }
 
         this.startCooldown();
-    }
+    };
 
     private startCooldown() {
         if (!this.cooldownBar || this.cooldownTime <= 0) return;
@@ -128,6 +161,7 @@ export class VegClickMoney extends Component {
     }
 
     // ====================== Вспомогательные методы ======================
+
     private findFirstNodeByName(root: Node | null, name: string): Node | null {
         if (!root) return null;
         const stack: Node[] = [root];
@@ -159,7 +193,6 @@ export class VegClickMoney extends Component {
             n.setPosition(basePos);
 
             const upPos = new Vec3(basePos.x, basePos.y + this.liftY, basePos.z);
-
             tween(n)
                 .to(Math.max(0.01, this.liftUpTime), { position: upPos }, { easing: 'quadOut' })
                 .to(Math.max(0.01, this.liftDownTime), { position: basePos }, { easing: 'quadIn' })
@@ -202,7 +235,10 @@ export class VegClickMoney extends Component {
             const moneybar = this.findFirstNodeByName(sceneRoot, 'Moneybar');
             target = moneybar ? this.findFirstNodeByName(moneybar, this.coinTargetName) : null;
         }
-        if (!target) return;
+        if (!target) {
+            console.warn('[VegClickMoney] ⚠️ Не найдена цель для полёта монеты');
+            return;
+        }
 
         const canvas = this._canvasNode ?? this.findFirstNodeByName(sceneRoot, 'Canvas') ?? sceneRoot;
         const canvasTr = canvas.getComponent(UITransform);

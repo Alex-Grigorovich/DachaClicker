@@ -4,26 +4,60 @@ const { ccclass, property } = _decorator;
 
 @ccclass('MoneyManager')
 export class MoneyManager extends Component {
-
-    @property({ type: Label })
+    @property({ type: Label, tooltip: 'Label с деньгами (MoneyTextCount)' })
     moneyLabel: Label = null;
 
-    // Принимаем массив от emit([amount])
-    addMoney(amount: number | number[] | any) {
-        if (!this.moneyLabel) return;
+    private static _instance: MoneyManager | null = null;
 
-        // Если пришёл массив (как делает emit([value]))
-        let realAmount = 1;
-        
-        if (Array.isArray(amount) && amount.length > 0) {
-            realAmount = Number(amount[0]) || 1;
-        } else if (typeof amount === 'number') {
-            realAmount = amount;
+    public static get instance(): MoneyManager {
+        if (!MoneyManager._instance) {
+            console.error('[MoneyManager] ❌ Instance not found! Убедись, что MoneyManager добавлен на сцену.');
+        }
+        return MoneyManager._instance!;
+    }
+
+    onLoad() {
+        if (MoneyManager._instance && MoneyManager._instance !== this) {
+            console.warn('[MoneyManager] Multiple instances detected. Destroying duplicate.');
+            this.node.destroy();
+            return;
         }
 
-        const current = parseInt(this.moneyLabel.string || '0', 10);
-        const newTotal = (isNaN(current) ? 0 : current) + realAmount;
+        MoneyManager._instance = this;
+
+        // ←←← ЭТО САМОЕ ВАЖНОЕ ИСПРАВЛЕНИЕ
+        this.resetToZero();
+
+        console.log('[MoneyManager] ✅ Singleton initialized | Баланс сброшен в 0');
+    }
+
+    onDestroy() {
+        if (MoneyManager._instance === this) {
+            MoneyManager._instance = null;
+        }
+    }
+
+    /** Сбрасывает деньги в 0 при старте игры */
+    private resetToZero() {
+        if (!this.moneyLabel) {
+            console.error('[MoneyManager] ❌ moneyLabel не назначен в инспекторе!');
+            return;
+        }
+
+        this.moneyLabel.string = '0';
+        console.log('[MoneyManager] 💰 Начальный баланс установлен: 0');
+    }
+
+    addMoney(amount: number) {
+        if (!this.moneyLabel) {
+            console.error('[MoneyManager] ❌ moneyLabel не назначен!');
+            return;
+        }
+
+        const current = parseInt(this.moneyLabel.string || '0', 10) || 0;
+        const newTotal = current + Math.floor(amount);   // на всякий случай целое число
 
         this.moneyLabel.string = newTotal.toString();
+        console.log(`[MoneyManager] 💰 +${amount} | Новый баланс: ${newTotal}`);
     }
 }

@@ -11,6 +11,9 @@ export class GlobalCooldown extends Component {
     @property({ tooltip: 'Длительность перезарядки в секундах' })
     cooldownTime: number = 1.0;
 
+
+    
+
     private _active: boolean = false;
     private _tweenState: { p: number } | null = null;
 
