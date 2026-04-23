@@ -1,137 +1,94 @@
-import { _decorator, Camera, Component, Node, screen, Size, UITransform, Vec3, Widget } from 'cc';
-const { ccclass, property } = _decorator;
+import { _decorator, Component, Node, screen, UITransform, view, macro, director } from 'cc';
 
-export enum AdaptMode {
-    FillNoBorder = 0, // Заполняет экран, обрезает края (без пустот)
-    FitWidth = 1,     // Подгоняет по ширине
-    FitHeight = 2     // Подгоняет по высоте
-}
+const { ccclass, property, executeInEditMode } = _decorator;
 
-@ccclass('ResolutionAdapter')
-export class ResolutionAdapter extends Component {
-    @property({ tooltip: "Базовое разрешение (ширина)" })
-    designWidth = 1280;
-    
-    @property({ tooltip: "Базовое разрешение (высота)" })
-    designHeight = 720;
+@ccclass('AdaptiveScale')
+@executeInEditMode   // чтобы работало и в редакторе при смене ориентации
+export class AdaptiveScale extends Component {
 
-    @property({ tooltip: "Режим адаптации" })
-    adaptMode = AdaptMode.FillNoBorder;
+    @property({ type: Node, tooltip: 'GameField — основное игровое поле' })
+    gameField: Node | null = null;
 
-    // СЮДА перетащите ваш GameField (сетку с ячейками)
-    @property({ tooltip: "Узел с игровым полем" })
-    rootGameNode: Node = null;
+    @property({ type: [Node], tooltip: 'Кнопки слева (ButtonsLeft)' })
+    leftButtons: Node[] = [];
 
-    @property({ tooltip: "Камера" })
-    sceneCamera: Camera = null;
+    @property({ type: [Node], tooltip: 'Кнопки справа (ButtonsRight)' })
+    rightButtons: Node[] = [];
 
-    @property({ type: Node })
-    moneybar: Node = null;
+    @property({ tooltip: 'Пороговое соотношение (width/height). Ниже — портрет' })
+    portraitThreshold: number = 0.9;   // 0.9 — хороший баланс (меньше 1 — портрет)
 
-    @property({ type: Node })
-    buttonsLeft: Node = null;
+    @property({ tooltip: 'Масштаб в портретном режиме (0.7–0.85 обычно хватает)' })
+    portraitScale: number = 0.78;
 
-    @property({ type: Node })
-    buttonsRight: Node = null;
+    @property({ tooltip: 'Масштаб в ландшафтном режиме' })
+    landscapeScale: number = 1.0;
+
+    private originalScales = new Map<Node, number>();
 
     onLoad() {
-        screen.on('window-resize', this.onResize, this);
-        this.onResize();
+        // Сохраняем оригинальные масштабы
+        this.saveOriginalScales();
+    }
+
+    start() {
+        this.applyAdaptiveScale();
+
+        // Подписываемся на изменение размера окна / ориентации
+        screen.on('window-resize', this.onScreenResize, this);
+        // screen.on('orientation-change', this.onScreenResize, this); // можно добавить
     }
 
     onDestroy() {
-        screen.off('window-resize', this.onResize, this);
+        screen.off('window-resize', this.onScreenResize, this);
     }
 
-    private onResize() {
-        const winSize = screen.windowSize;
-        if (!winSize || winSize.width <= 0 || winSize.height <= 0) return;
-
-        let finalScale = 1;
-
-        // Рассчитываем масштаб
-        switch (this.adaptMode) {
-            case AdaptMode.FillNoBorder:
-                // Заполняет весь экран (может обрезать поле по краям)
-                finalScale = Math.max(winSize.width / this.designWidth, winSize.height / this.designHeight);
-                break;
-            case AdaptMode.FitWidth:
-                finalScale = winSize.width / this.designWidth;
-                break;
-            case AdaptMode.FitHeight:
-                finalScale = winSize.height / this.designHeight;
-                break;
+    private saveOriginalScales() {
+        if (this.gameField) {
+            this.originalScales.set(this.gameField, this.gameField.scale.x);
         }
-
-        // Масштабируем ТОЛЬКО игровое поле
-        if (this.rootGameNode) {
-            this.rootGameNode.setScale(new Vec3(finalScale, finalScale, 1));
-        }
-
-        // Корректируем камеру
-        if (this.sceneCamera && this.sceneCamera.projection === Camera.ProjectionType.ORTHO) {
-            this.sceneCamera.orthoHeight = (this.designHeight / 2) * finalScale;
-        }
-
-        // Обновляем UI (прилипание к краям/углам)
-        this.updateUIPositions(winSize, finalScale);
+        [...this.leftButtons, ...this.rightButtons].forEach(node => {
+            if (node) {
+                this.originalScales.set(node, node.scale.x);
+            }
+        });
     }
 
-    private updateUIPositions(winSize: Size, finalScale: number) {
-        const padding = 20;
+    private onScreenResize() {
+        // Небольшая задержка, чтобы экран точно обновился
+        this.scheduleOnce(() => {
+            this.applyAdaptiveScale();
+        }, 0.05);
+    }
 
-        const alignLeft = (node: Node | null, alsoTop = false) => {
-            if (!node) return;
+    private applyAdaptiveScale() {
+        const size = screen.windowSize;           // актуальный размер экрана
+        const ratio = size.width / size.height;   // ширина / высота
 
-            const widget = node.getComponent(Widget);
-            if (widget) {
-                widget.isAlignLeft = true;
-                widget.left = padding;
+        const isPortrait = ratio < this.portraitThreshold;
 
-                if (alsoTop) {
-                    widget.isAlignTop = true;
-                    widget.top = (widget.top ?? padding);
-                }
+        const targetScale = isPortrait ? this.portraitScale : this.landscapeScale;
 
-                widget.updateAlignment();
-                return;
+        console.log(`[AdaptiveScale] ratio: ${ratio.toFixed(3)}, ${isPortrait ? 'ПОРТРЕТ' : 'ЛАНДШАФТ'}, scale: ${targetScale}`);
+
+        // Применяем масштаб к GameField
+        if (this.gameField) {
+            const orig = this.originalScales.get(this.gameField) || 1;
+            this.gameField.setScale(orig * targetScale, orig * targetScale, 1);
+        }
+
+        // Применяем к кнопкам слева и справа
+        const allButtons = [...this.leftButtons, ...this.rightButtons];
+        allButtons.forEach(node => {
+            if (node) {
+                const orig = this.originalScales.get(node) || 1;
+                node.setScale(orig * targetScale, orig * targetScale, 1);
             }
+        });
+    }
 
-            // Fallback: если Widget нет — прижимаем через позицию
-            const parentTransform = node.parent?.getComponent(UITransform);
-            const nodeTransform = node.getComponent(UITransform);
-            const parentWidth = parentTransform?.contentSize.width ?? (winSize.width / finalScale);
-            const nodeWidth = nodeTransform?.contentSize.width ?? 0;
-            const anchorX = nodeTransform?.anchorX ?? 0.5;
-            const x = -parentWidth / 2 + padding + nodeWidth * anchorX;
-            node.setPosition(x, node.position.y, 0);
-        };
-
-        const alignRight = (node: Node | null) => {
-            if (!node) return;
-
-            const widget = node.getComponent(Widget);
-            if (widget) {
-                widget.isAlignRight = true;
-                widget.right = padding;
-                widget.updateAlignment();
-                return;
-            }
-
-            const parentTransform = node.parent?.getComponent(UITransform);
-            const nodeTransform = node.getComponent(UITransform);
-            const parentWidth = parentTransform?.contentSize.width ?? (winSize.width / finalScale);
-            const nodeWidth = nodeTransform?.contentSize.width ?? 0;
-            const anchorX = nodeTransform?.anchorX ?? 0.5;
-            const x = parentWidth / 2 - padding - nodeWidth * (1 - anchorX);
-            node.setPosition(x, node.position.y, 0);
-        };
-
-        // Moneybar — в левый верхний угол
-        alignLeft(this.moneybar, true);
-
-        // Кнопки — к левому/правому краю (вертикаль оставляем как есть)
-        alignLeft(this.buttonsLeft);
-        alignRight(this.buttonsRight);
+    // Для удобства — можно вызвать вручную из другого скрипта
+    public refresh() {
+        this.applyAdaptiveScale();
     }
 }

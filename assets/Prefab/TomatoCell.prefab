@@ -587,7 +587,7 @@
       "b": 255,
       "a": 255
     },
-    "_string": "5",
+    "_string": "55",
     "_horizontalAlign": 1,
     "_verticalAlign": 1,
     "_actualFontSize": 40,
@@ -1034,14 +1034,14 @@
     "searchRoot": {
       "__id__": 1
     },
-    "addPerClick": 10,
+    "addPerClick": 55,
     "liftY": 20,
     "liftUpTime": 0.5,
     "liftDownTime": 0.5,
     "cooldownBar": {
       "__id__": 39
     },
-    "cooldownTime": 1,
+    "cooldownTime": 120,
     "coinTarget": null,
     "coinSourceName": "IconCoin",
     "coinTargetName": "IconCoinBar",
@@ -1067,6 +1067,7 @@
       "__id__": 0
     },
     "fileId": "71KokYdeRGc61kvWrUkRNZ",
+    "instance": null,
     "targetOverrides": null
   }
 ]

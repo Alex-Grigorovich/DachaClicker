@@ -17,6 +17,9 @@ export class SlotMenuHandler extends Component {
     // Полный путь к кнопке закрытия (от VegetableList)
     private readonly CLOSE_BUTTON_PATH = 'ButtonClose/ButtonClose';   // ← самое важное изменение
 
+    /** Совпадает с VegetableMenuHandler: куда кладётся префаб овоща. */
+    private readonly CONTENT_NAME = 'Content';
+
     private _isOpen: boolean = false;
     private _clickHandlerAdded: boolean = false;
 
@@ -81,6 +84,10 @@ export class SlotMenuHandler extends Component {
     }
 
     public openMenu = () => {
+        if (this.cellHasPlacedFood()) {
+            return;
+        }
+
         if (!this.menuPanel) {
             this.menuPanel = find(this.MENU_PATH);
             if (this.menuPanel) this.findCloseButton();
@@ -130,6 +137,19 @@ export class SlotMenuHandler extends Component {
             this.menuPanel.active = false;
         }
     };
+
+    private cellHasPlacedFood(): boolean {
+        const content = this.node.getChildByName(this.CONTENT_NAME);
+        if (content) {
+            return content.children.length > 0;
+        }
+        return false;
+    }
+
+    /** Меню скрыто через выбор еды (VegetableMenuHandler), а не через closeMenu — сбрасываем флаг. */
+    public notifyMenuClosedByPick() {
+        this._isOpen = false;
+    }
 
     onDestroy() {
         this.node.off(Button.EventType.CLICK, this.openMenu, this);

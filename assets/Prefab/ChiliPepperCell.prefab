@@ -788,7 +788,7 @@
     },
     "_lpos": {
       "__type__": "cc.Vec3",
-      "x": 48.387,
+      "x": 52.7695,
       "y": -31.839,
       "z": 0
     },
@@ -829,7 +829,7 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 40,
+      "width": 48.765,
       "height": 36.224
     },
     "_anchorPoint": {
@@ -865,11 +865,11 @@
       "b": 255,
       "a": 255
     },
-    "_string": "5",
+    "_string": "160",
     "_horizontalAlign": 1,
     "_verticalAlign": 1,
-    "_actualFontSize": 40,
-    "_fontSize": 40,
+    "_actualFontSize": 30,
+    "_fontSize": 30,
     "_fontFamily": "Caveat",
     "_lineHeight": 40,
     "_overflow": 1,
@@ -1312,14 +1312,14 @@
     "searchRoot": {
       "__id__": 1
     },
-    "addPerClick": 15,
+    "addPerClick": 160,
     "liftY": 20,
     "liftUpTime": 0.5,
     "liftDownTime": 0.5,
     "cooldownBar": {
       "__id__": 51
     },
-    "cooldownTime": 1,
+    "cooldownTime": 300,
     "coinTarget": null,
     "coinSourceName": "IconCoin",
     "coinTargetName": "IconCoinBar",
@@ -1345,6 +1345,7 @@
       "__id__": 0
     },
     "fileId": "c52DY9vSRAPr2taz20DKtO",
+    "instance": null,
     "targetOverrides": null
   }
 ]

@@ -16,6 +16,10 @@ export class MoneyManager extends Component {
         return MoneyManager._instance!;
     }
 
+    public static getInstance(): MoneyManager | null {
+        return MoneyManager._instance;
+    }
+
     onLoad() {
         if (MoneyManager._instance && MoneyManager._instance !== this) {
             console.warn('[MoneyManager] Multiple instances detected. Destroying duplicate.');
@@ -48,13 +52,36 @@ export class MoneyManager extends Component {
         console.log('[MoneyManager] 💰 Начальный баланс установлен: 0');
     }
 
+    getMoney(): number {
+        if (!this.moneyLabel) {
+            return 0;
+        }
+        return parseInt(this.moneyLabel.string || '0', 10) || 0;
+    }
+
+    /** Списывает сумму, если баланс достаточен. */
+    subtractMoney(amount: number): boolean {
+        if (!this.moneyLabel) {
+            console.error('[MoneyManager] ❌ moneyLabel не назначен!');
+            return false;
+        }
+        const cost = Math.floor(amount);
+        const current = this.getMoney();
+        if (current < cost) {
+            return false;
+        }
+        this.moneyLabel.string = (current - cost).toString();
+        console.log(`[MoneyManager] 💰 -${cost} | Новый баланс: ${this.getMoney()}`);
+        return true;
+    }
+
     addMoney(amount: number) {
         if (!this.moneyLabel) {
             console.error('[MoneyManager] ❌ moneyLabel не назначен!');
             return;
         }
 
-        const current = parseInt(this.moneyLabel.string || '0', 10) || 0;
+        const current = this.getMoney();
         const newTotal = current + Math.floor(amount);   // на всякий случай целое число
 
         this.moneyLabel.string = newTotal.toString();
