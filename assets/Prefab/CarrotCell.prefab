@@ -587,7 +587,7 @@
       "b": 255,
       "a": 255
     },
-    "_string": "5",
+    "_string": "4",
     "_horizontalAlign": 1,
     "_verticalAlign": 1,
     "_actualFontSize": 40,
@@ -1034,15 +1034,17 @@
     "searchRoot": {
       "__id__": 1
     },
-    "addPerClick": 5,
+    "addPerClick": 4,
     "liftY": 20,
     "liftUpTime": 0.5,
     "liftDownTime": 0.5,
     "cooldownBar": {
       "__id__": 39
     },
-    "cooldownTime": 1,
+    "cooldownTime": 6,
     "coinTarget": null,
+    "canvasRoot": null,
+    "moneybarRoot": null,
     "coinSourceName": "IconCoin",
     "coinTargetName": "IconCoinBar",
     "coinFlyTime": 0.4,
@@ -1050,6 +1052,7 @@
     "coinFlyWidth": 0,
     "coinFlyHeight": 0,
     "moneyCountLabel": null,
+    "baseAddPerClick": 1,
     "_id": ""
   },
   {
@@ -1065,6 +1068,7 @@
       "__id__": 0
     },
     "fileId": "6fnaE0hatK0b5Esjknic2S",
+    "instance": null,
     "targetOverrides": null
   }
 ]

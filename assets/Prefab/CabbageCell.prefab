@@ -726,7 +726,7 @@
       "b": 255,
       "a": 255
     },
-    "_string": "18",
+    "_string": "14",
     "_horizontalAlign": 1,
     "_verticalAlign": 1,
     "_actualFontSize": 40,
@@ -1173,15 +1173,17 @@
     "searchRoot": {
       "__id__": 1
     },
-    "addPerClick": 18,
+    "addPerClick": 11,
     "liftY": 20,
     "liftUpTime": 0.5,
     "liftDownTime": 0.5,
     "cooldownBar": {
       "__id__": 45
     },
-    "cooldownTime": 45,
+    "cooldownTime": 14,
     "coinTarget": null,
+    "canvasRoot": null,
+    "moneybarRoot": null,
     "coinSourceName": "IconCoin",
     "coinTargetName": "IconCoinBar",
     "coinFlyTime": 0.4,
@@ -1189,6 +1191,7 @@
     "coinFlyWidth": 0,
     "coinFlyHeight": 0,
     "moneyCountLabel": null,
+    "baseAddPerClick": 1,
     "_id": ""
   },
   {

@@ -1,4 +1,5 @@
 import { _decorator, Component, director, EditBox, Label, Node, resources, RichText, TTFFont } from 'cc';
+import './ProgressManager';
 const { ccclass, property } = _decorator;
 
 @ccclass('FontLoader')
@@ -8,23 +9,41 @@ export class FontLoader extends Component {
     @property({ type: EditBox, tooltip: 'Если задан — применить шрифт только к этому EditBox' })
     editBox: EditBox = null;
 
-    @property({ type: Node, tooltip: 'Если задано — применить шрифт ко всем EditBox внутри этого узла (например UI или Moneybar)' })
+    @property({ type: Node, tooltip: 'Если задано — применить шрифт ко всем EditBox внутри этого узла (например, корень UI)' })
     editBoxRoot: Node = null;
+
+    @property({
+        tooltip:
+            'Путь к TTFFont в assets/resources/ без расширения (например fonts/Caveat). Пустая строка — не грузить шрифт, остаётся шрифт по умолчанию.',
+    })
+    fontResourcePath: string = 'fonts/Caveat';
 
     private _loadedFont: TTFFont | null = null;
 
     start() {
-        // Путь относительно assets/resources/
-        this.loadCustomFont('fonts/MyCustomFont');
+        const path = (this.fontResourcePath ?? '').trim();
+        if (!path) {
+            return;
+        }
+        this.loadCustomFont(path);
     }
 
     loadCustomFont(url: string) {
-        resources.load(url, TTFFont, (err, fontAsset) => {
+        const path = (url ?? '').trim();
+        if (!path) {
+            return;
+        }
+        resources.load(path, TTFFont, (err, fontAsset) => {
             if (err) {
-                console.error('❌ Ошибка загрузки шрифта:', err);
+                if (this.isValid) {
+                    console.warn('[FontLoader] Шрифт не найден по пути resources/' + path + ', используется шрифт по умолчанию.', err?.message ?? err);
+                }
                 return;
             }
-            console.log('✅ Шрифт загружен:', fontAsset.name);
+            if (!this.isValid) {
+                return;
+            }
+            console.log('[FontLoader] Шрифт загружен:', fontAsset.name);
             this._loadedFont = fontAsset;
             
             if (this.richText) {

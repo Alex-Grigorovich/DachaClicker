@@ -1,0 +1,334 @@
+{
+  "version": 1,
+  "id": "starter_questline",
+  "title": "Starter Questline",
+  "description": "Черновая линейка квестов для текущего прототипа. Награды: деньги и открытие ячеек.",
+  "tracking_keys": [
+    "total_clicks",
+    "total_earned",
+    "current_money",
+    "planted_slots_count",
+    "unlocked_cultures_count",
+    "opened_slot_4",
+    "opened_slot_5",
+    "opened_slot_6"
+  ],
+  "quests": [
+    {
+      "id": "quest_first_click",
+      "order": 1,
+      "group": "tutorial",
+      "title": "Сделай первый клик",
+      "description": "Сделай первый клик по овощу.",
+      "conditions": [
+        {
+          "key": "total_clicks",
+          "operator": ">=",
+          "value": 1
+        }
+      ],
+      "rewards": [
+        {
+          "type": "money",
+          "amount": 10
+        }
+      ]
+    },
+    {
+      "id": "quest_earn_25",
+      "order": 2,
+      "group": "tutorial",
+      "title": "Заработай первые 25 денег",
+      "description": "Накопи 25 заработанных денег за всё время.",
+      "conditions": [
+        {
+          "key": "total_earned",
+          "operator": ">=",
+          "value": 25
+        }
+      ],
+      "rewards": [
+        {
+          "type": "money",
+          "amount": 25
+        }
+      ]
+    },
+    {
+      "id": "quest_plant_first_crop",
+      "order": 3,
+      "group": "tutorial",
+      "title": "Посади первую культуру",
+      "description": "Займи хотя бы один слот культурой.",
+      "conditions": [
+        {
+          "key": "planted_slots_count",
+          "operator": ">=",
+          "value": 1
+        }
+      ],
+      "rewards": [
+        {
+          "type": "money",
+          "amount": 30
+        }
+      ]
+    },
+    {
+      "id": "quest_fill_2_slots",
+      "order": 4,
+      "group": "field_progression",
+      "title": "Заполни 2 слота культурами",
+      "description": "Займи две ячейки культурами.",
+      "conditions": [
+        {
+          "key": "planted_slots_count",
+          "operator": ">=",
+          "value": 2
+        }
+      ],
+      "rewards": [
+        {
+          "type": "money",
+          "amount": 50
+        }
+      ]
+    },
+    {
+      "id": "quest_fill_3_start_slots",
+      "order": 5,
+      "group": "field_progression",
+      "title": "Заполни 3 стартовых слота",
+      "description": "Заполни все стартовые слоты культурами.",
+      "conditions": [
+        {
+          "key": "planted_slots_count",
+          "operator": ">=",
+          "value": 3
+        }
+      ],
+      "rewards": [
+        {
+          "type": "unlock_slot",
+          "slot_index": 4
+        }
+      ]
+    },
+    {
+      "id": "quest_earn_300",
+      "order": 6,
+      "group": "economy",
+      "title": "Заработай 300 денег за всё время",
+      "description": "Дойди до 300 заработанных денег за всё время.",
+      "conditions": [
+        {
+          "key": "total_earned",
+          "operator": ">=",
+          "value": 300
+        }
+      ],
+      "rewards": [
+        {
+          "type": "money",
+          "amount": 75
+        }
+      ]
+    },
+    {
+      "id": "quest_unlock_first_new_crop",
+      "order": 7,
+      "group": "content_unlocks",
+      "title": "Открой первую новую культуру",
+      "description": "Разблокируй хотя бы одну дополнительную культуру.",
+      "conditions": [
+        {
+          "key": "unlocked_cultures_count",
+          "operator": ">=",
+          "value": 1
+        }
+      ],
+      "rewards": [
+        {
+          "type": "money",
+          "amount": 100
+        }
+      ]
+    },
+    {
+      "id": "quest_fill_4_slots",
+      "order": 8,
+      "group": "field_progression",
+      "title": "Заполни 4 слота культурами",
+      "description": "Займи 4 ячейки культурами.",
+      "conditions": [
+        {
+          "key": "planted_slots_count",
+          "operator": ">=",
+          "value": 4
+        }
+      ],
+      "rewards": [
+        {
+          "type": "unlock_slot",
+          "slot_index": 5
+        }
+      ]
+    },
+    {
+      "id": "quest_earn_1000",
+      "order": 9,
+      "group": "economy",
+      "title": "Заработай 1000 денег за всё время",
+      "description": "Дойди до 1000 заработанных денег за всё время.",
+      "conditions": [
+        {
+          "key": "total_earned",
+          "operator": ">=",
+          "value": 1000
+        }
+      ],
+      "rewards": [
+        {
+          "type": "money",
+          "amount": 200
+        }
+      ]
+    },
+    {
+      "id": "quest_unlock_2_new_crops",
+      "order": 10,
+      "group": "content_unlocks",
+      "title": "Открой 2 дополнительные культуры",
+      "description": "Разблокируй две дополнительные культуры.",
+      "conditions": [
+        {
+          "key": "unlocked_cultures_count",
+          "operator": ">=",
+          "value": 2
+        }
+      ],
+      "rewards": [
+        {
+          "type": "money",
+          "amount": 250
+        }
+      ]
+    },
+    {
+      "id": "quest_fill_5_slots",
+      "order": 11,
+      "group": "field_progression",
+      "title": "Заполни 5 слотов культурами",
+      "description": "Займи 5 ячеек культурами.",
+      "conditions": [
+        {
+          "key": "planted_slots_count",
+          "operator": ">=",
+          "value": 5
+        }
+      ],
+      "rewards": [
+        {
+          "type": "unlock_slot",
+          "slot_index": 6
+        }
+      ]
+    },
+    {
+      "id": "quest_earn_2500",
+      "order": 12,
+      "group": "economy",
+      "title": "Заработай 2500 денег за всё время",
+      "description": "Дойди до 2500 заработанных денег за всё время.",
+      "conditions": [
+        {
+          "key": "total_earned",
+          "operator": ">=",
+          "value": 2500
+        }
+      ],
+      "rewards": [
+        {
+          "type": "money",
+          "amount": 400
+        }
+      ]
+    },
+    {
+      "id": "quest_unlock_all_base_crops",
+      "order": 13,
+      "group": "content_unlocks",
+      "title": "Открой все базовые культуры",
+      "description": "Разблокируй все дополнительные базовые культуры.",
+      "conditions": [
+        {
+          "key": "unlocked_cultures_count",
+          "operator": ">=",
+          "value": 3
+        }
+      ],
+      "rewards": [
+        {
+          "type": "money",
+          "amount": 500
+        }
+      ]
+    },
+    {
+      "id": "quest_fill_all_6_slots",
+      "order": 14,
+      "group": "field_progression",
+      "title": "Заполни все 6 слотов",
+      "description": "Займи все доступные ячейки культурами.",
+      "conditions": [
+        {
+          "key": "planted_slots_count",
+          "operator": ">=",
+          "value": 6
+        }
+      ],
+      "rewards": [
+        {
+          "type": "money",
+          "amount": 750
+        }
+      ]
+    },
+    {
+      "id": "quest_earn_5000",
+      "order": 15,
+      "group": "economy",
+      "title": "Заработай 5000 денег за всё время",
+      "description": "Дойди до 5000 заработанных денег за всё время.",
+      "conditions": [
+        {
+          "key": "total_earned",
+          "operator": ">=",
+          "value": 5000
+        }
+      ],
+      "rewards": [
+        {
+          "type": "money",
+          "amount": 1000
+        }
+      ]
+    }
+  ],
+  "minimal_first_implementation": [
+    "quest_first_click",
+    "quest_earn_25",
+    "quest_plant_first_crop",
+    "quest_fill_2_slots",
+    "quest_fill_3_start_slots",
+    "quest_unlock_first_new_crop",
+    "quest_fill_4_slots",
+    "quest_fill_5_slots"
+  ],
+  "notes": [
+    "Пока rewards.type ограничены money и unlock_slot.",
+    "total_earned лучше считать как накопленный заработок за всё время, а не текущий баланс.",
+    "Открытие 4, 5 и 6 слота здесь оформлено как награда за milestone-квесты.",
+    "При желании позже можно добавить поля is_repeatable, next_quest_id, ui_icon, analytics_key."
+  ]
+}

@@ -1,5 +1,10 @@
 import { _decorator, Component, director, Node, ProgressBar, Size, Sprite, Tween, tween, UITransform, Vec3, Vec2, Label } from 'cc';
+import { BalanceCultureKey, DEFAULT_BALANCE_RESOURCE_PATH } from './BalanceData';
 import { MoneyManager } from './MoneyManager';
+import { PlantFieldState } from './PlantFieldState';
+import { formatMoneyDisplay } from './formatMoneyDisplay';
+import { notifyQuestClick } from './QuestBridge';
+import { UpgradeManager } from './UpgradeManager';
 
 const { ccclass, property } = _decorator;
 
@@ -29,6 +34,12 @@ export class VegClickMoney extends Component {
     @property({ type: Node, tooltip: 'Цель полёта монеты (можно оставить пустым)' })
     coinTarget: Node = null;
 
+    @property({ type: Node, tooltip: 'Корень Canvas (если задан, не ищем по имени Canvas)' })
+    canvasRoot: Node | null = null;
+
+    @property({ type: Node, tooltip: 'Корень Moneybar (если задан, не ищем по имени Moneybar)' })
+    moneybarRoot: Node | null = null;
+
     @property({ tooltip: 'Имя монеты в ячейке' }) 
     coinSourceName: string = 'IconCoin';
     
@@ -50,20 +61,32 @@ export class VegClickMoney extends Component {
     @property({ type: Label, tooltip: 'Label с ценой внутри ячейки' })
     moneyCountLabel: Label = null;
 
+    @property({ tooltip: 'База дохода клика без апгрейдов (задаётся балансом культуры)' })
+    baseAddPerClick: number = 1;
+
     private _basePositions = new WeakMap<Node, Vec3>();
     private _cooldownActive: boolean = false;
     private _currentCooldownTween: Tween<any> | null = null;
     private _canvasNode: Node | null = null;
+    private _resolvedCoinTarget: Node | null = null;
+    /** Тот же кадр/платформа может дать TOUCH_END и MOUSE_UP — не считаем дважды (как в VegetableMenuHandler). */
+    private _lastVegPointerNode: Node | null = null;
+    private _lastVegPointerAt = 0;
 
     onLoad() {
+        UpgradeManager.initialize(DEFAULT_BALANCE_RESOURCE_PATH);
         const scene = director.getScene();
-        this._canvasNode = scene ? (this.findFirstNodeByName(scene, 'Canvas') ?? scene) : null;
+        this._canvasNode =
+            this.canvasRoot?.isValid
+                ? this.canvasRoot
+                : scene
+                  ? (this.findFirstNodeByName(scene, 'Canvas') ?? scene)
+                  : null;
+        this._resolvedCoinTarget = this.resolveCoinTarget(scene);
 
+        this.baseAddPerClick = Math.max(0, Math.floor(Number(this.baseAddPerClick) || Math.floor(Number(this.addPerClick) || 0)));
         // 1. Синхронизация цены внутри ячейки
-        if (this.moneyCountLabel) {
-            this.moneyCountLabel.string = this.addPerClick.toString();
-            console.log(`[VegClickMoney] 💰 Установлена цена: ${this.addPerClick}`);
-        }
+        this.syncMoneyCountLabel();
 
         // 2. Настройка кликов
         let root = this.searchRoot || this.node;
@@ -72,7 +95,9 @@ export class VegClickMoney extends Component {
 
         for (const veg of vegNodes) {
             veg.off(Node.EventType.TOUCH_END, this.onVegClick, this);
+            veg.off(Node.EventType.MOUSE_UP, this.onVegClick, this);
             veg.on(Node.EventType.TOUCH_END, this.onVegClick, this);
+            veg.on(Node.EventType.MOUSE_UP, this.onVegClick, this);
             this.cacheVegBasePositions(veg);
         }
 
@@ -93,15 +118,30 @@ export class VegClickMoney extends Component {
         }
 
         // Проверка MoneyManager
-        if (!MoneyManager.instance) {
+        if (!MoneyManager.getInstance()) {
             console.error('[VegClickMoney] ❌ MoneyManager не найден в сцене!');
         } else {
             console.log('[VegClickMoney] ✅ MoneyManager подключён через singleton');
         }
     }
 
+    onDestroy() {
+        if (this.cooldownBar?.node?.isValid) {
+            Tween.stopAllByTarget(this.cooldownBar.node);
+        }
+        this._currentCooldownTween = null;
+    }
+
     private get moneyManager(): MoneyManager | null {
-        return MoneyManager.instance || null;
+        return MoneyManager.getInstance();
+    }
+
+    /** Установить базовый доход клика из баланса и сразу обновить label в ячейке. */
+    public setBaseClickReward(value: number): void {
+        const v = Math.max(0, Math.floor(Number(value) || 0));
+        this.baseAddPerClick = v;
+        this.addPerClick = v;
+        this.syncMoneyCountLabel();
     }
 
     private onVegClick = (event?: any) => {
@@ -116,6 +156,13 @@ export class VegClickMoney extends Component {
             return;
         }
 
+        const now = Date.now();
+        if (vegNode === this._lastVegPointerNode && now - this._lastVegPointerAt < 250) {
+            return;
+        }
+        this._lastVegPointerNode = vegNode;
+        this._lastVegPointerAt = now;
+
         console.log(`[VegClickMoney] 🖱️ Клик по ${vegNode.name}`);
 
         this.animateVegSprites(vegNode);
@@ -124,10 +171,16 @@ export class VegClickMoney extends Component {
         // Добавление денег через singleton
         const manager = this.moneyManager;
         if (manager) {
-            manager.addMoney(this.addPerClick);
+            const culture = this.resolveCultureKey();
+            const reward = Math.max(0, Math.floor(UpgradeManager.getClickReward(this.baseAddPerClick, culture) || 0));
+            this.addPerClick = reward;
+            this.syncMoneyCountLabel();
+            manager.addMoney(reward);
         } else {
             console.error('[VegClickMoney] ❌ MoneyManager.instance недоступен!');
         }
+
+        notifyQuestClick();
 
         this.startCooldown();
     };
@@ -142,14 +195,19 @@ export class VegClickMoney extends Component {
         barNode.active = true;
         this.cooldownBar.progress = 0;
 
+        const actualCooldown = UpgradeManager.getCooldownTime(this.cooldownTime);
+
         this._currentCooldownTween = tween(barNode)
-            .to(this.cooldownTime, {}, {
+            .to(actualCooldown, {}, {
                 easing: 'linear',
                 onUpdate: (_, ratio: number) => {
                     if (this.cooldownBar) this.cooldownBar.progress = ratio;
                 }
             })
             .call(() => {
+                if (!this.isValid) {
+                    return;
+                }
                 this._cooldownActive = false;
                 if (this.cooldownBar) {
                     this.cooldownBar.node.active = false;
@@ -158,6 +216,12 @@ export class VegClickMoney extends Component {
                 this._currentCooldownTween = null;
             })
             .start();
+    }
+
+    private resolveCultureKey(): BalanceCultureKey | '' | 'unknown' {
+        const content = this.node.parent;
+        const cell = content?.name === 'Content' ? content.parent : content?.parent;
+        return PlantFieldState.getInstance().getCellCulture(cell ?? null);
     }
 
     // ====================== Вспомогательные методы ======================
@@ -230,11 +294,7 @@ export class VegClickMoney extends Component {
         const sf = source?.getComponent(Sprite)?.spriteFrame;
         if (!source || !sf) return;
 
-        let target = this.coinTarget;
-        if (!target) {
-            const moneybar = this.findFirstNodeByName(sceneRoot, 'Moneybar');
-            target = moneybar ? this.findFirstNodeByName(moneybar, this.coinTargetName) : null;
-        }
+        let target = this.resolveCoinTarget(sceneRoot);
         if (!target) {
             console.warn('[VegClickMoney] ⚠️ Не найдена цель для полёта монеты');
             return;
@@ -283,7 +343,51 @@ export class VegClickMoney extends Component {
                 tween(flyUi).to(this.coinFlyTime, { contentSize: new Size(tw, th) }, { easing: 'quadInOut' })
             )
             .delay(this.coinHoldTime)
-            .call(() => fly.destroy())
+            .call(() => {
+                // При остановке Preview сцена уже может уничтожить Canvas — второй destroy даёт ошибку движка.
+                Tween.stopAllByTarget(fly);
+                if (fly.isValid) {
+                    fly.destroy();
+                }
+            })
             .start();
+    }
+
+    private resolveCoinTarget(sceneRoot: Node | null): Node | null {
+        if (this.coinTarget?.isValid) {
+            this._resolvedCoinTarget = this.coinTarget;
+            return this.coinTarget;
+        }
+        if (this._resolvedCoinTarget?.isValid) {
+            return this._resolvedCoinTarget;
+        }
+        if (!sceneRoot?.isValid) {
+            return null;
+        }
+
+        const moneybar = this.moneybarRoot?.isValid ? this.moneybarRoot : this.findFirstNodeByName(sceneRoot, 'Moneybar');
+        const target = moneybar ? this.findFirstNodeByName(moneybar, this.coinTargetName) : null;
+        if (target?.isValid) {
+            this._resolvedCoinTarget = target;
+            return target;
+        }
+        return null;
+    }
+
+    private syncMoneyCountLabel() {
+        const label = this.moneyCountLabel?.isValid
+            ? this.moneyCountLabel
+            : (this.findFirstNodeByName(this.node, 'moneyCount')?.getComponent(Label)
+                ?? this.findFirstNodeByName(this.node, 'moneyCountLabel')?.getComponent(Label)
+                ?? null);
+        if (!label) {
+            return;
+        }
+        this.moneyCountLabel = label;
+        const culture = this.resolveCultureKey();
+        const v = Math.max(0, Math.floor(UpgradeManager.getClickRewardPreview(this.baseAddPerClick, culture) || 0));
+        this.addPerClick = v;
+        label.string = formatMoneyDisplay(v);
+        console.log(`[VegClickMoney] 💰 Установлена цена: ${v}`);
     }
 }
