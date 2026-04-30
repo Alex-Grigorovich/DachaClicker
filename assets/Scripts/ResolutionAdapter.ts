@@ -1,4 +1,5 @@
-import { _decorator, Component, director, Layout, Node, screen, UITransform, Vec3, Widget } from 'cc';
+import { _decorator, Component, director, Label, Layout, Node, ProgressBar, screen, UITransform, Vec3, Widget } from 'cc';
+import { LevelProgressController } from './LevelProgressController';
 
 const { ccclass, property, executeInEditMode } = _decorator;
 
@@ -22,6 +23,9 @@ export class AdaptiveScale extends Component {
 
     @property({ type: Node, tooltip: 'VegetableList — панель выбора культур (должна целиком влезать в экран)' })
     vegetableList: Node | null = null;
+
+    @property({ type: Node, tooltip: 'VegetableListUnlocked — панель разблокировок (те же правила вписывания, что у VegetableList)' })
+    vegetableListUnlocked: Node | null = null;
 
     @property({ type: Node, tooltip: 'UpgradeList — панель апгрейдов (вписывается по ширине/высоте в экран)' })
     upgradeList: Node | null = null;
@@ -159,6 +163,7 @@ export class AdaptiveScale extends Component {
 
     private originalScales = new Map<Node, number>();
     private vegetableListBaseScale = 1;
+    private vegetableListUnlockedBaseScale = 1;
     private upgradeListBaseScale = 1;
     private readonly _tmpWorld = new Vec3();
     private readonly _tmpLocal = new Vec3();
@@ -167,6 +172,8 @@ export class AdaptiveScale extends Component {
         this.resolveRowNodes();
         this.saveOriginalScales();
         this.saveVegetableListBaseScale();
+        this.resolveVegetableListUnlocked();
+        this.saveVegetableListUnlockedBaseScale();
         this.resolveUpgradeList();
         this.saveUpgradeListBaseScale();
         this.disableLayoutOnRow();
@@ -174,6 +181,10 @@ export class AdaptiveScale extends Component {
         if (!this.node.getComponent('UpgradeListToggle')) {
             this.node.addComponent('UpgradeListToggle');
         }
+        if (!this.node.getComponent('VegetableUnlockListToggle')) {
+            this.node.addComponent('VegetableUnlockListToggle');
+        }
+        this.ensureLevelProgressController();
         const progressManager = this.resolveProgressManager();
         progressManager?.setSavingDisabled?.(this.disableProgressSaving || !!progressManager.disableSaving);
     }
@@ -206,6 +217,20 @@ export class AdaptiveScale extends Component {
             this.screenRoot = this.findTopUiAncestor(root);
         }
         this.resolveUpgradeList();
+        this.resolveVegetableListUnlocked();
+    }
+
+    private resolveVegetableListUnlocked() {
+        if (this.vegetableListUnlocked?.isValid) {
+            return;
+        }
+        let start = this.screenRoot;
+        if (!start?.isValid) {
+            start = director.getScene();
+        }
+        if (start?.isValid) {
+            this.vegetableListUnlocked = this.findNodeDeepByName(start, 'VegetableListUnlocked');
+        }
     }
 
     private resolveUpgradeList() {
@@ -229,6 +254,38 @@ export class AdaptiveScale extends Component {
             }
         }
         return null;
+    }
+
+    /** Автоподключение прогресса уровня к ProgressBar/LevelText без правки префабов. */
+    private ensureLevelProgressController() {
+        const start = (this.screenRoot?.isValid ? this.screenRoot : director.getScene()) ?? null;
+        if (!start) {
+            return;
+        }
+        const progressNode = this.findNodeDeepByName(start, 'ProgressBar');
+        if (!progressNode?.isValid) {
+            return;
+        }
+
+        let controller = progressNode.getComponent(LevelProgressController);
+        if (!controller) {
+            controller = progressNode.addComponent(LevelProgressController);
+        }
+
+        if (!controller.progressBar) {
+            controller.progressBar =
+                progressNode.getComponent(ProgressBar) ?? progressNode.getComponentInChildren(ProgressBar);
+        }
+
+        if (!controller.levelText) {
+            const levelNode =
+                this.findNodeDeepByName(start, 'LevelText') ?? this.findNodeDeepByName(start, 'LevelText-001');
+            if (levelNode?.isValid) {
+                controller.levelText = levelNode.getComponent(Label) ?? levelNode.getComponentInChildren(Label);
+            }
+        }
+
+        controller.refreshNow();
     }
 
     /**
@@ -320,28 +377,12 @@ export class AdaptiveScale extends Component {
         const shortEdge = Math.min(size.width, size.height);
         const isSmallLandscape = !isPortrait && shortEdge <= this.smallLandscapeShortEdgeMax;
 
-        let fieldScale = isPortrait ? this.portraitScale : this.landscapeScale;
-        if (isSmallLandscape) {
-            fieldScale = Math.min(fieldScale, this.smallLandscapeFieldScale);
-        }
-        if (shortEdge >= this.largeDisplayShortEdgeMin) {
-            const boosted = fieldScale * this.largeDisplayFieldScaleMul;
-            fieldScale = Math.min(this.largeDisplayFieldScaleCap, boosted);
-        }
-
-        const t = this.gameFieldTuning > 0 ? this.gameFieldTuning : 1;
-        const cap = this.gameFieldTuningMax > 0 ? this.gameFieldTuningMax : 1.2;
-        fieldScale = Math.min(cap, fieldScale * t);
-
-        if (shortEdge >= this.largeDisplayShortEdgeMin) {
-            const extra = this.largeDisplayGameFieldExtraMul > 0 ? this.largeDisplayGameFieldExtraMul : 1;
-            const largeCap = this.largeDisplayGameFieldMax > 0 ? this.largeDisplayGameFieldMax : cap;
-            fieldScale = Math.min(largeCap, fieldScale * extra);
-        }
+        // По требованию: всегда держим масштаб GameField строго 0.9 по X/Y.
+        const fieldScale = 0.9;
 
         console.log(
             `[AdaptiveScale] ratio: ${ratio.toFixed(3)}, ${isPortrait ? 'ПОРТРЕТ' : 'ЛАНДШАФТ'}, ` +
-                `field: ${fieldScale.toFixed(3)} (tuning×${t.toFixed(2)} cap≤${cap.toFixed(2)}), ` +
+                `field: ${fieldScale.toFixed(3)} (forced), ` +
                 `smallLandscape: ${isSmallLandscape}, shortEdge: ${shortEdge.toFixed(0)}`,
         );
 
@@ -351,6 +392,7 @@ export class AdaptiveScale extends Component {
         }
         this.applyGameRowLayout();
         this.fitVegetableList(true);
+        this.fitVegetableListUnlocked(true);
         this.fitUpgradeList(true);
     }
 
@@ -504,6 +546,14 @@ export class AdaptiveScale extends Component {
         }
     }
 
+    private saveVegetableListUnlockedBaseScale() {
+        this.resolveVegetableListUnlocked();
+        const n = this.vegetableListUnlocked;
+        if (n?.isValid) {
+            this.vegetableListUnlockedBaseScale = n.scale.x;
+        }
+    }
+
     private saveUpgradeListBaseScale() {
         this.resolveUpgradeList();
         const n = this.upgradeList;
@@ -574,6 +624,72 @@ export class AdaptiveScale extends Component {
         fitMul = Math.max(fitMul, minRel);
 
         const finalS = this.vegetableListBaseScale * fitMul;
+        if (apply) {
+            n.setScale(finalS, finalS, n.scale.z);
+        }
+        return finalS;
+    }
+
+    /**
+     * То же, что fitVegetableList, для панели разблокировок культур.
+     */
+    public fitVegetableListUnlocked(apply: boolean = true): number {
+        this.resolveVegetableListUnlocked();
+        const n = this.vegetableListUnlocked;
+        if (!n?.isValid) {
+            return 1;
+        }
+        this.resolveRowNodes();
+        const screenForFit = this.screenRoot ?? this.findTopUiAncestor(n);
+        const screenUi = screenForFit?.getComponent(UITransform);
+        if (!screenUi) {
+            return this.vegetableListUnlockedBaseScale;
+        }
+        const listUi = n.getComponent(UITransform);
+        if (!listUi) {
+            return this.vegetableListUnlockedBaseScale;
+        }
+
+        const screenWorld = screenUi.getBoundingBoxToWorld();
+        if (screenWorld.width <= 0 || screenWorld.height <= 0) {
+            return this.vegetableListUnlockedBaseScale;
+        }
+
+        const sizeW = screen.windowSize.width / screen.windowSize.height;
+        const isPortrait = sizeW < this.portraitThreshold;
+        const hRatio = isPortrait
+            ? this.vegetableListPortraitMaxHeightRatio
+            : this.vegetableListLandscapeMaxHeightRatio;
+
+        const maxH =
+            screenWorld.height * hRatio - this.vegetableListTopPadding - this.vegetableListBottomPadding;
+        const maxW = screenWorld.width * this.vegetableListMaxWidthRatio;
+
+        const ch = listUi.contentSize.height;
+        const cw = listUi.contentSize.width;
+        const parentSy = this.getCumulativeParentScale(n, 'y');
+        const parentSx = this.getCumulativeParentScale(n, 'x');
+        const base = Math.max(1e-4, this.vegetableListUnlockedBaseScale);
+        const worldH = ch * base * parentSy;
+        const worldW = cw * base * parentSx;
+
+        if (worldH <= 0 || worldW <= 0) {
+            return this.vegetableListUnlockedBaseScale;
+        }
+
+        const sH = maxH / worldH;
+        const sW = maxW / worldW;
+        let fitMul = Math.min(1, sH, sW);
+        if (isPortrait) {
+            const m = this.vegetableListPortraitTightenMul;
+            if (m > 0 && m < 1) {
+                fitMul *= m;
+            }
+        }
+        const minRel = this.vegetableListMinScale / this.vegetableListUnlockedBaseScale;
+        fitMul = Math.max(fitMul, minRel);
+
+        const finalS = this.vegetableListUnlockedBaseScale * fitMul;
         if (apply) {
             n.setScale(finalS, finalS, n.scale.z);
         }

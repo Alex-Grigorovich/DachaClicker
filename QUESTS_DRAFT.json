@@ -137,14 +137,14 @@
     {
       "id": "quest_unlock_first_new_crop",
       "order": 7,
-      "group": "content_unlocks",
-      "title": "Открой первую новую культуру",
-      "description": "Разблокируй хотя бы одну дополнительную культуру.",
+      "group": "economy",
+      "title": "Накопи 350 монет",
+      "description": "Собери 350 монет на текущем балансе.",
       "conditions": [
         {
-          "key": "unlocked_cultures_count",
+          "key": "current_money",
           "operator": ">=",
-          "value": 1
+          "value": 350
         }
       ],
       "rewards": [
@@ -197,14 +197,14 @@
     {
       "id": "quest_unlock_2_new_crops",
       "order": 10,
-      "group": "content_unlocks",
-      "title": "Открой 2 дополнительные культуры",
-      "description": "Разблокируй две дополнительные культуры.",
+      "group": "economy",
+      "title": "Накопи 900 монет",
+      "description": "Собери 900 монет на текущем балансе.",
       "conditions": [
         {
-          "key": "unlocked_cultures_count",
+          "key": "current_money",
           "operator": ">=",
-          "value": 2
+          "value": 900
         }
       ],
       "rewards": [
@@ -257,14 +257,14 @@
     {
       "id": "quest_unlock_all_base_crops",
       "order": 13,
-      "group": "content_unlocks",
-      "title": "Открой все базовые культуры",
-      "description": "Разблокируй все дополнительные базовые культуры.",
+      "group": "economy",
+      "title": "Накопи 1800 монет",
+      "description": "Собери 1800 монет на текущем балансе.",
       "conditions": [
         {
-          "key": "unlocked_cultures_count",
+          "key": "current_money",
           "operator": ">=",
-          "value": 3
+          "value": 1800
         }
       ],
       "rewards": [

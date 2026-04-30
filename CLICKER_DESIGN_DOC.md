@@ -27,9 +27,9 @@
 
 ### Поле и посадки
 
-- `SlotMenuHandler` открывает меню только для свободной ячейки.
+- `SlotMenuHandler` открывает `VegetableList` по клику на слоты поля (в т.ч. занятые), обновляя `targetCell`.
 - `PlantFieldState` хранит `cell -> culture`.
-- Восстановление посадок: сначала по `uuid`, fallback по `name` (важно для Preview).
+- Восстановление посадок: приоритет `slotId`, затем fallback по `uuid` и `name` (важно для Preview).
 
 ### Культуры и разблокировки
 
@@ -59,7 +59,7 @@
 
 - `ProgressManager` — singleton-оркестратор сохранения/восстановления.
 - Хранилище: `sys.localStorage`, ключ `farm_clicker_progress_v1`.
-- Формат сейва: `PROGRESS_SAVE_VERSION = 2`.
+- Формат сейва: `PROGRESS_SAVE_VERSION = 3`.
 - Сохраняются:
   - деньги (`balance`, `totalEarned`);
   - квесты (`activeIndex`, `totalClicks`);
@@ -69,7 +69,7 @@
   - уровни апгрейдов (`upgrades`).
 - Миграции:
   - есть цепочка `MIGRATIONS`;
-  - реализован шаг `v1 -> v2` (поле `upgrades`).
+  - реализованы шаги `v1 -> v2` (поле `upgrades`) и `v2 -> v3` (`fieldCells[].slotId`, `cellLocks[].slotId`).
 - Для тестов:
   - `ProgressManager.disableSaving`;
   - `ResolutionAdapter.disableProgressSaving`;
@@ -86,11 +86,17 @@
   - модификация кулдауна (`cooldown_multiplier`, `extra_cooldown_multiplier`);
   - бонус к денежным наградам квестов (`quest_money_bonus_percent`);
   - скидка на открытие культур (`culture_unlock_discount_percent`).
-- Остаётся UI-привязка `UpgradeList` к конкретным `upgradeId` (кнопки/лейблы уровней и цен).
+- `UpgradeListPanel` довязан к `UpgradeManager`:
+  - строки `ColList` сопоставляются с `upgradeId` через встроенный mapping + `rowBindings`;
+  - покупка по клику с защитой от дублей и единым deny-feedback (`shakeAndFlashRed`);
+  - обновление уровней/цен в строках (`LevelText`, `CostText`) и внешних cost-лейблах;
+  - после покупки принудительно обновляются активные `VegClickMoney` для корректных UI-значений.
+- `UpgradeListToggle` управляет открытием/закрытием панели с анимацией и интеграцией в `ResolutionAdapter.fitUpgradeList`.
 
 ### UI/сервис
 
-- `ResolutionAdapter` масштабирует `GameField`, боковые панели, `VegetableList`, `UpgradeList`.
+- `ResolutionAdapter` масштабирует `GameField`, боковые панели, `VegetableList`, `VegetableListUnlocked`, `UpgradeList`.
+- `ExclusiveUIPanels` обеспечивает взаимоисключение основных окон (`VegetableList`, `VegetableListUnlocked`, `UpgradeList`, `Tasks`): при открытии одного остальные закрываются автоматически.
 - `FontLoader` переведен на мягкую загрузку:
   - путь `fontResourcePath` (по умолчанию `resources/fonts/Caveat`);
   - при ошибке — `console.warn` (без жесткого `console.error`).
@@ -106,8 +112,8 @@
 
 ### Идентификаторы ячеек
 
-- В Preview `uuid` может быть нестабильным, поэтому есть fallback по `name`.
-- Для production желательно ввести устойчивый явный slot-id.
+- Введен стабильный `slotId` в сейве (`fieldCells`, `cellLocks`) и в runtime-сопоставлении.
+- Для совместимости со старыми/нестабильными данными в Preview сохранены fallback'и по `uuid` и `name`.
 
 ### Поиск по строковым именам
 
@@ -118,25 +124,35 @@
 
 ### Высокий
 
-1. **Частично сделано:** внедрён `UpgradeManager`:
-   - чтение `upgrades` из `BALANCE_DATA` — готово;
-   - покупка уровней через API `UpgradeManager.purchase(id)` — готово;
-   - применение эффектов к клику/кулдауну/наградам — подключено (`VegClickMoney`, `QuestManager`, скидка на unlock в `VegetableMenuHandler`);
-   - persistence — используется существующий (`UpgradeProgressStore` + `ProgressManager`);
-   - осталось: финальная UI-привязка кнопок `UpgradeList` к конкретным `upgradeId`.
-2. **Частично сделано:** единый UX отказа при нехватке денег / клик по замку:
-   - визуальный фидбек (shake + красная подсветка) для блоков культур и замков — через `UiMoneyDenyFeedback` + `VegetableMenuHandler` / `CellLockHandler` (см. §2);
-   - осталось по желанию: звук ошибки; вынести в отдельный компонент-обёртку, если понадобится настройка из редактора без кода.
+1. **Сделано:** апгрейды доведены до игрового UI:
+   - покупка и валидация через `UpgradeManager`;
+   - UI-интеграция через `UpgradeListPanel`/`UpgradeListToggle`;
+   - эффекты уже работают в клике/кулдауне/квест-наградах/скидке на unlock;
+   - уровни апгрейдов сохраняются и восстанавливаются через текущий save-flow.
+2. **Сделано:** введены стабильные `slotId` и миграция `v2 -> v3` сейва:
+   - `ProgressSave`: версия поднята до `v3`, добавлен шаг миграции `2 -> 3` для `fieldCells[].slotId` и `cellLocks[].slotId`;
+   - `ProgressManager`/`VegetableMenuHandler`: сохранение и восстановление теперь в первую очередь работают по `slotId` (с fallback на `uuid`/`name`).
+3. **Следующий шаг:** закрыть UX-ветку денежных отказов:
+   - добавить опциональный аудио-фидбек к `UiMoneyDenyFeedback`;
+   - при необходимости вынести настройки deny-feedback в editor-friendly компонент.
 
 ### Средний
 
-1. **Частично сделано:** уменьшен string-based поиск по сцене:
-   - `VegClickMoney` теперь поддерживает явные ссылки `canvasRoot` и `moneybarRoot` через `@property`;
-   - оставшийся поиск по именам оставлен только как fallback и для prefab-контрактов.
+1. **Сделано:** уменьшен string-based поиск по сцене:
+   - `VegClickMoney` уже использует явные ссылки `canvasRoot` и `moneybarRoot`;
+   - в `VegetableMenuHandler` добавлены `@property` для критичных узлов (`rowsRoot`, `cultureRows`, `cultureBlocks`, `unlockMenuNode`) с fallback на поиск по имени;
+   - в `UpgradeListToggle` добавлены `@property` (`searchRoot`, `adaptiveScale`) с fallback на поиск по сцене;
+   - изменения сделаны без правки префабов (runtime-only).
 2. **Сделано:** подготовлена стратегия миграций сейва `v3+`:
    - в `ProgressSave.ts` добавлен `PROGRESS_SAVE_MIGRATION_PLAN`;
    - добавлена runtime-проверка полноты цепочки `MIGRATIONS` с предупреждением в лог, если шагов не хватает.
-3. При необходимости расширить `UnlockManager` на другие типы разблокировок.
+3. **Сделано:** формализован smoke/regression-проход (минимальный чеклист):
+   - **Шаг 1 (чистый старт):** удалить localStorage-ключ `farm_clicker_progress_v1`, запустить сцену; ожидаемо: баланс 0, только базовая культура, стартовые слоты/замки в дефолте.
+   - **Шаг 2 (базовый прогресс):** заработать деньги, посадить культуры в несколько слотов, открыть 1-2 культуры через `VegetableListUnlocked`; ожидаемо: UI и квест-метрики обновляются без ошибок.
+   - **Шаг 3 (апгрейды):** купить несколько апгрейдов в `UpgradeList`; ожидаемо: уровни/цены обновились, эффекты применяются к клику/кулдауну/стоимости unlock.
+   - **Шаг 4 (перезагрузка):** reload сцены/перезапуск Preview; ожидаемо: корректно восстановлены `money`, `upgrades`, `unlockedCultures`, `fieldCells`, `cellLocks`.
+   - **Шаг 5 (v2->v3 совместимость):** загрузить старый сейв без `slotId`; ожидаемо: миграция в `v3` проходит автоматически, посадки и замки матчатся по `slotId`/fallback без потерь.
+4. При необходимости расширить `UnlockManager` на другие типы разблокировок.
 
 ### Низкий
 
@@ -152,7 +168,7 @@
 - `ProgressManager` — save/load и жизненный цикл восстановления.
 - `UnlockManager` — доменный статус разблокировок культур (дальше расширяем).
 - `PlantFieldState` — состояние посадок.
-- `UpgradeManager` — уровни апгрейдов и применение эффектов; UI-покупки в `UpgradeList` ещё нужно довязать.
+- `UpgradeManager` — уровни апгрейдов и применение эффектов; UI-покупки и отображение статусов обслуживаются через `UpgradeListPanel`.
 
 ### Игровые компоненты
 
@@ -166,6 +182,6 @@
 
 ## 6) Итог
 
-Фундамент прототипа стабилен: деньги, посадки, квесты, разблокировки и апгрейд-прогресс (как данные) переживают перезапуск сцены через persist-сейв.
+Фундамент прототипа стабилен: деньги, посадки, квесты, разблокировки и апгрейды (включая UI-покупки/уровни) переживают перезапуск сцены через persist-сейв.
 
-Главный продуктовый шаг — довязать UI `UpgradeList` к `UpgradeManager` (покупки/лейблы/состояния). Визуальный отказ при нехватке денег для меню культур и замков уже задан общей утилитой и двумя обработчиками; при появлении новых денежных действий — переиспользовать `UiMoneyDenyFeedback` или расширить его.
+Критичный шаг со стабильными `slotId` уже закрыт (миграция `v2 -> v3` в проде), а UI-панели переведены на взаимоисключающее открытие. Следующие продуктовые шаги — UX-полировка денежных отказов (звук/настройки из редактора) и дальнейшее планомерное сокращение string-based зависимостей там, где это безопасно для сцены/префабов.

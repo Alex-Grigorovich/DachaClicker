@@ -137,12 +137,14 @@ export class ProgressManager extends Component {
             },
             quests: quests?.getQuestState() ?? createDefaultProgressSave().quests,
             unlockedCultures: vegetableMenu?.getUnlockedCultureKeys() ?? [],
-            cellLocks: locks.map(lock => ({
+            cellLocks: locks.map((lock, index) => ({
+                slotId: this.resolveSlotId(lock.node, index + 1),
                 uuid: lock.node.uuid,
                 name: lock.node.name,
                 locked: lock.isLockedNow(),
             })),
-            fieldCells: fieldCells.map(cell => ({
+            fieldCells: fieldCells.map((cell, index) => ({
+                slotId: this.resolveSlotId(cell, index + 1),
                 uuid: cell.uuid,
                 name: cell.name,
                 culture: PlantFieldState.getInstance().getCellCulture(cell),
@@ -187,10 +189,12 @@ export class ProgressManager extends Component {
             MoneyManager.getInstance()?.restoreMoney(save.money.balance, save.money.totalEarned);
             quests?.restoreQuestState(save.quests);
 
+            const lockBySlotId = new Map(save.cellLocks.map(item => [item.slotId, item]));
             const lockByUuid = new Map(save.cellLocks.map(item => [item.uuid, item]));
             const lockByName = new Map(save.cellLocks.map(item => [item.name, item]));
             for (const lock of scene.getComponentsInChildren(CellLockHandler)) {
-                const savedLock = lockByUuid.get(lock.node.uuid) ?? lockByName.get(lock.node.name);
+                const slotId = this.resolveSlotId(lock.node, 0);
+                const savedLock = (slotId > 0 ? lockBySlotId.get(slotId) : undefined) ?? lockByUuid.get(lock.node.uuid) ?? lockByName.get(lock.node.name);
                 if (savedLock) {
                     lock.restoreLockState(savedLock.locked);
                 }
@@ -240,6 +244,21 @@ export class ProgressManager extends Component {
         }
         seen.add(cell.uuid);
         out.push(cell);
+    }
+
+    /** Стабильный id слота: число из конца имени (`Cell1` -> 1), иначе fallback. */
+    private resolveSlotId(node: Node | null | undefined, fallback: number): number {
+        if (node?.isValid) {
+            const m = node.name.match(/(\d+)(?!.*\d)/);
+            if (m) {
+                const parsed = Math.floor(Number(m[1]));
+                if (Number.isFinite(parsed) && parsed > 0) {
+                    return parsed;
+                }
+            }
+        }
+        const normalizedFallback = Math.floor(Number(fallback));
+        return Number.isFinite(normalizedFallback) && normalizedFallback > 0 ? normalizedFallback : 0;
     }
 
     private finishRestoreCycle() {

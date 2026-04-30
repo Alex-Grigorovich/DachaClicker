@@ -1,4 +1,5 @@
 import { _decorator, Component, Node, Button, tween, Tween, Vec3 } from 'cc';
+import { ExclusiveUIPanelId, closeOtherExclusivePanels } from './ExclusiveUIPanels';
 
 const { ccclass, property } = _decorator;
 
@@ -107,12 +108,16 @@ export class TasksPanelToggle extends Component {
             console.warn('[TasksPanelToggle] tasksRoot не назначен');
             return;
         }
+        if (!this.tasksRoot.active) {
+            this._animating = false;
+        }
         if (this._animating) {
             return;
         }
         if (this.tasksRoot.active) {
             this.animateClose();
         } else {
+            closeOtherExclusivePanels(ExclusiveUIPanelId.Tasks);
             this.animateOpen();
         }
     }

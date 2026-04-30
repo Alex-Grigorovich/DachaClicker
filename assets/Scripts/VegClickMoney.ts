@@ -101,6 +101,9 @@ export class VegClickMoney extends Component {
             this.cacheVegBasePositions(veg);
         }
 
+        /** Клики по дочерним IconCoin / moneyCount не попадают в обработчик VegClick, но всплывают к Button слота — открывая меню. */
+        this.wireLeafClickTargets(root);
+
         // 3. Настройка кулдауна
         if (!this.cooldownBar) {
             this.cooldownBar = this.node.getComponentInChildren(ProgressBar);
@@ -145,17 +148,30 @@ export class VegClickMoney extends Component {
     }
 
     private onVegClick = (event?: any) => {
+        // Клик по овощу не должен всплывать в кнопку слота,
+        // иначе SlotMenuHandler откроет меню поверх фарма.
+        if (event && typeof event.stopPropagation === 'function') {
+            event.stopPropagation();
+        } else if (event && 'propagationStopped' in event) {
+            event.propagationStopped = true;
+        }
+
         if (this._cooldownActive) {
             console.log('[VegClickMoney] ⏳ Кулдаун активен');
             return;
         }
 
-        const vegNode = (event?.currentTarget as Node) ?? (event?.target as Node);
-        if (!vegNode) {
+        const leaf = (event?.currentTarget as Node) ?? (event?.target as Node);
+        if (!leaf) {
             console.warn('[VegClickMoney] ❌ vegNode не найден');
             return;
         }
 
+        if (!this.hasHarvestableVegetableOnCell()) {
+            return;
+        }
+
+        const vegNode = this.findVegClickRoot(leaf) ?? leaf;
         const now = Date.now();
         if (vegNode === this._lastVegPointerNode && now - this._lastVegPointerAt < 250) {
             return;
@@ -163,12 +179,44 @@ export class VegClickMoney extends Component {
         this._lastVegPointerNode = vegNode;
         this._lastVegPointerAt = now;
 
-        console.log(`[VegClickMoney] 🖱️ Клик по ${vegNode.name}`);
+        console.log(`[VegClickMoney] 🖱️ Клик по ${leaf.name} (агрегатор VegClick: ${vegNode.name})`);
 
+        this.applyHarvestEffects(vegNode);
+    };
+
+    /**
+     * Клик по самой ячейке (Cell1–6, Button) при уже посаженном овоще:
+     * начисление как при тапе по префабу, без открытия меню посадки.
+     * @returns true если слот должен «съесть» клик (урожай или кулдаун).
+     */
+    public tryHarvestFromCellButton(): boolean {
+        if (!this.hasHarvestableVegetableOnCell()) {
+            return false;
+        }
+        if (this._cooldownActive) {
+            return true;
+        }
+        const vegNode =
+            this.findFirstNodeByName(this.node, 'VegClick')
+            ?? this.findFirstVegClickUnderCellContent()
+            ?? this.node;
+        const now = Date.now();
+        if (vegNode === this._lastVegPointerNode && now - this._lastVegPointerAt < 250) {
+            return true;
+        }
+        this._lastVegPointerNode = vegNode;
+        this._lastVegPointerAt = now;
+
+        console.log(`[VegClickMoney] 🖱️ Клик по ячейке → урожай (${vegNode.name})`);
+
+        this.applyHarvestEffects(vegNode);
+        return true;
+    }
+
+    private applyHarvestEffects(vegNode: Node) {
         this.animateVegSprites(vegNode);
         this.animateCoinFly(vegNode);
 
-        // Добавление денег через singleton
         const manager = this.moneyManager;
         if (manager) {
             const culture = this.resolveCultureKey();
@@ -183,7 +231,94 @@ export class VegClickMoney extends Component {
         notifyQuestClick();
 
         this.startCooldown();
-    };
+    }
+
+    /** Ячейка Cell*, культура в состоянии поля и этот префаб принадлежит именно этой ячейке. */
+    private hasHarvestableVegetableOnCell(): boolean {
+        const cell = this.findOwningCell();
+        if (!cell?.isValid) {
+            return false;
+        }
+        if (!this.isHarvestPrefabUnderCell(cell)) {
+            return false;
+        }
+        const culture = PlantFieldState.getInstance().getCellCulture(cell);
+        return culture !== '' && culture !== undefined;
+    }
+
+    private isHarvestPrefabUnderCell(cell: Node): boolean {
+        let n: Node | null = this.node;
+        while (n) {
+            if (n === cell) {
+                return true;
+            }
+            n = n.parent;
+        }
+        return false;
+    }
+
+    /** Корневая ячейка слота (Cell1 … Cell6). */
+    private findOwningCell(): Node | null {
+        let n: Node | null = this.node;
+        while (n) {
+            if (/^Cell\d+$/.test(n.name)) {
+                return n;
+            }
+            n = n.parent;
+        }
+        return null;
+    }
+
+    private findFirstVegClickUnderCellContent(): Node | null {
+        const cell = this.findOwningCell();
+        const content = cell?.getChildByName('Content');
+        if (!content) {
+            return null;
+        }
+        return this.findFirstNodeByName(content, 'VegClick');
+    }
+
+    /** Поднимаемся от IconCoin/moneyCount к корню VegClick для анимаций и полёта монеты. */
+    private findVegClickRoot(from: Node | null): Node | null {
+        let n: Node | null = from;
+        while (n) {
+            if (n.name === 'VegClick') {
+                return n;
+            }
+            n = n.parent;
+        }
+        return null;
+    }
+
+    private wireLeafClickTargets(root: Node) {
+        const seen = new Set<string>();
+        const add = (n: Node | null) => {
+            if (!n?.isValid) {
+                return;
+            }
+            const id = `${n.uuid}`;
+            if (seen.has(id)) {
+                return;
+            }
+            seen.add(id);
+            n.off(Node.EventType.TOUCH_END, this.onVegClick, this);
+            n.off(Node.EventType.MOUSE_UP, this.onVegClick, this);
+            n.on(Node.EventType.TOUCH_END, this.onVegClick, this);
+            n.on(Node.EventType.MOUSE_UP, this.onVegClick, this);
+        };
+
+        for (const n of this.findAllNodesByName(root, this.coinSourceName)) {
+            add(n);
+        }
+        for (const name of ['moneyCount', 'moneyCountLabel']) {
+            for (const n of this.findAllNodesByName(root, name)) {
+                add(n);
+            }
+        }
+        if (this.moneyCountLabel?.node?.isValid) {
+            add(this.moneyCountLabel.node);
+        }
+    }
 
     private startCooldown() {
         if (!this.cooldownBar || this.cooldownTime <= 0) return;
@@ -219,8 +354,7 @@ export class VegClickMoney extends Component {
     }
 
     private resolveCultureKey(): BalanceCultureKey | '' | 'unknown' {
-        const content = this.node.parent;
-        const cell = content?.name === 'Content' ? content.parent : content?.parent;
+        const cell = this.findOwningCell();
         return PlantFieldState.getInstance().getCellCulture(cell ?? null);
     }
 

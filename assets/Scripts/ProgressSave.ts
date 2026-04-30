@@ -9,7 +9,7 @@ import { PlantCultureKey } from './PlantFieldState';
  * - Поля, которых не было в старой версии, заполняются из `createDefaultProgressSave()`.
  * - Сейв с версией новее клиента: предупреждение в лог, читаем совместимые поля, при записи версия снова станет актуальной (лишнее из JSON не сохраняем, если не в типе).
  */
-export const PROGRESS_SAVE_VERSION = 2;
+export const PROGRESS_SAVE_VERSION = 3;
 
 /** Не переименовывать: уже лежит у игроков. */
 export const PROGRESS_STORAGE_KEY = 'farm_clicker_progress_v1';
@@ -48,12 +48,16 @@ export interface SavedMoneyState {
 }
 
 export interface SavedFieldCellState {
+    /** Стабильный id слота (приоритет при восстановлении). */
+    slotId: number;
     uuid: string;
     name: string;
     culture: PlantCultureKey;
 }
 
 export interface SavedCellLockState {
+    /** Стабильный id слота (приоритет при восстановлении). */
+    slotId: number;
     uuid: string;
     name: string;
     locked: boolean;
@@ -168,6 +172,39 @@ const MIGRATIONS: MigrationStep[] = [
         version: 2,
         upgrades: normalizeUpgradeLevels(data.upgrades),
     }),
+    // 2 → 3: добавлены стабильные slotId для ячеек/замков
+    data => {
+        const readSlotId = (value: unknown): number => {
+            const n = Math.floor(Number(value));
+            return Number.isFinite(n) && n > 0 ? n : 0;
+        };
+        const parseSlotIdFromName = (name: unknown): number => {
+            const s = String(name ?? '');
+            const m = s.match(/(\d+)(?!.*\d)/);
+            if (!m) {
+                return 0;
+            }
+            return readSlotId(m[1]);
+        };
+        const withFieldSlotId = data.fieldCells.map((item, index) => {
+            const existing = readSlotId((item as Partial<SavedFieldCellState>).slotId);
+            const fromName = parseSlotIdFromName((item as Partial<SavedFieldCellState>).name);
+            const slotId = existing || fromName || index + 1;
+            return { ...item, slotId };
+        });
+        const withLockSlotId = data.cellLocks.map((item, index) => {
+            const existing = readSlotId((item as Partial<SavedCellLockState>).slotId);
+            const fromName = parseSlotIdFromName((item as Partial<SavedCellLockState>).name);
+            const slotId = existing || fromName || index + 1;
+            return { ...item, slotId };
+        });
+        return {
+            ...data,
+            version: 3,
+            fieldCells: withFieldSlotId,
+            cellLocks: withLockSlotId,
+        };
+    },
 ];
 
 /**

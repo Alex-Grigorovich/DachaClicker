@@ -82,21 +82,76 @@ export class VegetableMenuHandler extends Component {
     @property({ type: Button, tooltip: 'Кнопка закрытия меню (можно оставить пустой — найдётся автоматически)' })
     closeButton: Button | null = null;
 
+    @property({ type: Node, tooltip: 'Корень поиска строк/блоков меню (пусто — текущая нода)' })
+    rowsRoot: Node | null = null;
+
+    @property({ type: [Node], tooltip: 'Явные строки культур (CellList*). Приоритет над поиском по имени.' })
+    cultureRows: Node[] = [];
+
+    @property({ type: [Node], tooltip: 'Явные блоки блокировки (cellListBlock*). Приоритет над поиском по имени.' })
+    cultureBlocks: Node[] = [];
+
+    @property({ type: Node, tooltip: 'Явная ссылка на VegetableListUnlocked для авто-настройки роли' })
+    unlockMenuNode: Node | null = null;
+
     @property({ tooltip: 'Путь в assets/resources без расширения, например balance/BALANCE_DATA' })
     balanceResourcePath = DEFAULT_BALANCE_RESOURCE_PATH;
+
+    @property({ tooltip: 'Разрешить выбор культуры для выставления в слот' })
+    allowPlacement = true;
+
+    @property({ tooltip: 'Разрешить покупку/разблокировку культур в этом меню' })
+    allowUnlocking = true;
 
     private targetCell: Node | null = null;
     private readonly CONTENT_NAME = 'Content';
     private _menuItems: BalanceCultureDef[] = FALLBACK_MENU_ITEMS;
     private _balanceLoaded = false;
+    private _inited = false;
 
     /** Защита от двойного срабатывания TOUCH_END + MOUSE_UP по одному пункту. */
     private _lastPickKey: BalanceCultureKey | '' = '';
     private _lastPickAt = 0;
 
-    start() {
+    /**
+     * Можно вызвать извне (например из VegetableUnlockListToggle) ещё до первой активации ноды,
+     * чтобы баланс и click-хэндлеры были готовы к первому открытию.
+     */
+    public preInit() {
+        if (this._inited) {
+            return;
+        }
+        this._inited = true;
+        this.autoConfigureRoleByNodeName();
         this.setupCloseButton();
         this.loadMenuBalance();
+    }
+
+    /**
+     * Загрузку баланса и кнопку закрытия делаем в onLoad, а не в start:
+     * нода может быть неактивна до первого открытия — тогда start откладывается и меню «пустое».
+     */
+    onLoad() {
+        this.preInit();
+    }
+
+    private autoConfigureRoleByNodeName() {
+        const scene = director.getScene();
+        if (!scene) {
+            return;
+        }
+        const hasUnlockList = !!(this.unlockMenuNode?.isValid || this.findNodeDeep(scene, 'VegetableListUnlocked'));
+        if (!hasUnlockList) {
+            return;
+        }
+        if (this.node.name === 'VegetableList') {
+            this.allowUnlocking = false;
+            return;
+        }
+        if (this.node.name === 'VegetableListUnlocked') {
+            this.allowPlacement = false;
+            this.allowUnlocking = true;
+        }
     }
 
     private setupCloseButton() {
@@ -107,7 +162,11 @@ export class VegetableMenuHandler extends Component {
         }
 
         closeButton.node.off(Button.EventType.CLICK, this.closeMenu, this);
+        closeButton.node.off(Node.EventType.TOUCH_END, this.closeMenu, this);
+        closeButton.node.off(Node.EventType.MOUSE_UP, this.closeMenu, this);
         closeButton.node.on(Button.EventType.CLICK, this.closeMenu, this);
+        closeButton.node.on(Node.EventType.TOUCH_END, this.closeMenu, this);
+        closeButton.node.on(Node.EventType.MOUSE_UP, this.closeMenu, this);
     }
 
     private loadMenuBalance() {
@@ -130,11 +189,48 @@ export class VegetableMenuHandler extends Component {
         return this._balanceLoaded;
     }
 
+    /**
+     * В балансе указано имя строки как в меню посадки (`CellListCabbage`).
+     * Параллельная разметка в `VegetableListUnlocked` в сцене названа с суффиксом `Unb` (`CellListCabbageUnb`).
+     */
+    private resolveCultureRow(item: BalanceCultureDef): Node | null {
+        const explicit =
+            this.findByNameInPool(this.cultureRows, item.rowName) ??
+            this.findByNameInPool(this.cultureRows, `${item.rowName}Unb`);
+        if (explicit) {
+            return explicit;
+        }
+        const root = this.rowsRoot?.isValid ? this.rowsRoot : this.node;
+        let row = this.findNodeDeep(root, item.rowName);
+        if (!row) {
+            row = this.findNodeDeep(root, `${item.rowName}Unb`);
+        }
+        return row;
+    }
+
+    private resolveCultureBlock(blockName: string): Node | null {
+        const explicit = this.findByNameInPool(this.cultureBlocks, blockName);
+        if (explicit) {
+            return explicit;
+        }
+        const root = this.rowsRoot?.isValid ? this.rowsRoot : this.node;
+        return this.findNodeDeep(root, blockName);
+    }
+
+    private findByNameInPool(pool: Node[], name: string): Node | null {
+        for (const n of pool) {
+            if (n?.isValid && n.name === name) {
+                return n;
+            }
+        }
+        return null;
+    }
+
     private wireMenuRows() {
         for (const item of this._menuItems) {
-            const row = this.findNodeDeep(this.node, item.rowName);
+            const row = this.resolveCultureRow(item);
             if (!row) {
-                console.warn(`[VegetableMenuHandler] Нода ${item.rowName} не найдена`);
+                console.warn(`[VegetableMenuHandler] Нода строки не найдена: ${item.rowName}`);
                 continue;
             }
 
@@ -146,7 +242,7 @@ export class VegetableMenuHandler extends Component {
 
             // Клик попадает в дочерний cellList (спрайт/лейбл), а не в ноду с Button — слушаем hit-ноду.
             const hitNode = row.getChildByName('cellList') ?? row;
-            const onPick = () => this.tryPickMenuItem(item.key, menuButton);
+            const onPick = () => this.tryPickMenuItem(item.key, menuButton, row);
             hitNode.on(Node.EventType.TOUCH_END, onPick, this);
             hitNode.on(Node.EventType.MOUSE_UP, onPick, this);
 
@@ -156,29 +252,64 @@ export class VegetableMenuHandler extends Component {
                 continue;
             }
 
-            const block = this.findNodeDeep(this.node, blockName);
+            const block = this.resolveCultureBlock(blockName);
             const priceLabel = block?.getComponentInChildren(Label) ?? null;
             if (!block || !priceLabel) {
                 console.warn(`[VegetableMenuHandler] Не удалось настроить блокировку для ${item.rowName}`);
                 continue;
             }
 
-            priceLabel.string = formatMoneyDisplay(this.getUnlockCost(item));
             const cultureUnlocked = UnlockManager.isCultureUnlocked(item.key);
+            this.applyLockedRowLabel(item, block, priceLabel, cultureUnlocked);
             block.active = !cultureUnlocked;
             menuButton.interactable = cultureUnlocked;
-            const blockBtn = this.ensureBlockButton(block);
-            blockBtn.interactable = block.active;
-            blockBtn.node.on(
-                Button.EventType.CLICK,
-                () => this.onBlockButtonClicked(block, menuButton, item, blockBtn),
-                this,
-            );
+
+            if (this.allowUnlocking) {
+                // Используем TOUCH_END/MOUSE_UP напрямую — надёжнее, чем Button.EventType.CLICK
+                // на динамически созданных/неактивных нодах в Cocos Creator.
+                block.off(Node.EventType.TOUCH_END);
+                block.off(Node.EventType.MOUSE_UP);
+                const onUnlock = (evt?: { stopPropagation?: () => void }) => {
+                    evt?.stopPropagation?.();
+                    this.onLockedRowBlockClicked(block, menuButton, item);
+                };
+                block.on(Node.EventType.TOUCH_END, onUnlock, this);
+                block.on(Node.EventType.MOUSE_UP, onUnlock, this);
+            }
         }
     }
 
-    private tryPickMenuItem(key: BalanceCultureKey, menuButton: Button) {
+    /** В меню посадки заблокированные культуры показывают «Недоступно», в меню разблокировки — цену. */
+    private applyLockedRowLabel(
+        item: BalanceCultureDef,
+        block: Node,
+        priceLabel: Label,
+        cultureUnlocked: boolean,
+    ) {
+        if (cultureUnlocked) {
+            return;
+        }
+        if (this.allowUnlocking) {
+            priceLabel.string = formatMoneyDisplay(this.getUnlockCost(item));
+        } else {
+            priceLabel.string = 'Недоступно';
+        }
+    }
+
+    private tryPickMenuItem(key: BalanceCultureKey, menuButton: Button, row: Node) {
+        if (!this.allowPlacement) {
+            return;
+        }
         if (!menuButton.interactable) {
+            const item = this._menuItems.find(i => i.key === key);
+            if (item?.blockName) {
+                const block = this.resolveCultureBlock(item.blockName);
+                if (block?.active) {
+                    shakeAndFlashRed(block);
+                } else {
+                    shakeAndFlashRed(row);
+                }
+            }
             return;
         }
         const now = Date.now();
@@ -190,27 +321,12 @@ export class VegetableMenuHandler extends Component {
         this.onItemClicked(key);
     }
 
-    private ensureBlockButton(block: Node): Button {
-        let btn = block.getComponent(Button);
-        if (!btn) {
-            btn = block.addComponent(Button);
-            btn.transition = Button.Transition.NONE;
-            btn.zoomScale = 1;
-        }
-        return btn;
-    }
 
-    private onBlockButtonClicked(
-        block: Node,
-        menuButton: Button,
-        item: BalanceCultureDef,
-        blockBtn: Button,
-    ) {
-        this.onLockedRowBlockClicked(block, menuButton, item);
-        blockBtn.interactable = block.active;
-    }
 
     private onLockedRowBlockClicked(block: Node, menuButton: Button, item: BalanceCultureDef) {
+        if (!this.allowUnlocking) {
+            return;
+        }
         if (!block.active) {
             return;
         }
@@ -235,7 +351,22 @@ export class VegetableMenuHandler extends Component {
         UnlockManager.unlockCulture(item.key);
         block.active = false;
         menuButton.interactable = true;
+        this.syncAllVegetableMenusUnlockUi();
+        notifyQuestProgress();
+        notifyProgressChanged();
         console.log(`[VegetableMenuHandler] ${item.key} разблокирован за ${cost}`);
+    }
+
+    private syncAllVegetableMenusUnlockUi() {
+        const scene = director.getScene();
+        if (!scene) {
+            this.syncUnlockUiFromManager();
+            return;
+        }
+        const handlers = scene.getComponentsInChildren(VegetableMenuHandler);
+        for (const h of handlers) {
+            h.syncUnlockUiFromManager();
+        }
     }
 
     private getUnlockCost(item: BalanceCultureDef): number {
@@ -291,7 +422,12 @@ export class VegetableMenuHandler extends Component {
         }
 
         const byName = this.findNodeDeep(this.node, 'ButtonClose');
-        const resolved = byName?.getComponent(Button) ?? byName?.getComponentInChildren(Button) ?? null;
+        if (!byName?.isValid) {
+            return null;
+        }
+        const resolved = byName.getComponent(Button) ?? byName.getComponentInChildren(Button) ?? byName.addComponent(Button);
+        resolved.transition = Button.Transition.NONE;
+        resolved.zoomScale = 1;
         if (resolved) {
             this.closeButton = resolved;
         }
@@ -319,15 +455,21 @@ export class VegetableMenuHandler extends Component {
     }
 
     public restoreFieldCells(savedCells: SavedFieldCellState[], fieldCells: Node[]) {
+        const bySlotId = new Map(savedCells.map(item => [item.slotId, item]));
         const byUuid = new Map(savedCells.map(item => [item.uuid, item]));
         const byName = new Map(savedCells.map(item => [item.name, item]));
         const used = new Set<SavedFieldCellState>();
-        for (const cell of fieldCells) {
+        for (let index = 0; index < fieldCells.length; index++) {
+            const cell = fieldCells[index];
             if (!cell?.isValid) {
                 continue;
             }
 
-            const saved = byUuid.get(cell.uuid) ?? byName.get(cell.name);
+            const slotId = this.resolveCellSlotId(cell, index + 1);
+            const saved =
+                (slotId > 0 ? bySlotId.get(slotId) : undefined) ??
+                byUuid.get(cell.uuid) ??
+                byName.get(cell.name);
             if (!saved || !this.isKnownCultureKey(saved.culture)) {
                 this.clearSavedCell(cell);
                 continue;
@@ -340,6 +482,17 @@ export class VegetableMenuHandler extends Component {
 
             this.placeSavedCulture(cell, saved.culture);
         }
+    }
+
+    private resolveCellSlotId(cell: Node, fallback: number): number {
+        const m = cell.name.match(/(\d+)(?!.*\d)/);
+        if (m) {
+            const parsed = Math.floor(Number(m[1]));
+            if (Number.isFinite(parsed) && parsed > 0) {
+                return parsed;
+            }
+        }
+        return Math.max(0, Math.floor(fallback));
     }
 
     public getUnlockedCultureKeys(): BalanceCultureKey[] {
@@ -363,7 +516,7 @@ export class VegetableMenuHandler extends Component {
     }
 
     private applyCultureUnlockState(item: BalanceCultureDef, unlocked: boolean) {
-        const row = this.findNodeDeep(this.node, item.rowName);
+        const row = this.resolveCultureRow(item);
         const menuButton = row?.getComponent(Button) ?? row?.getComponentInChildren(Button) ?? null;
         if (menuButton) {
             menuButton.interactable = unlocked;
@@ -373,15 +526,15 @@ export class VegetableMenuHandler extends Component {
             return;
         }
 
-        const block = this.findNodeDeep(this.node, item.blockName);
+        const block = this.resolveCultureBlock(item.blockName);
         if (!block) {
             return;
         }
-        block.active = !unlocked;
-        const blockBtn = block.getComponent(Button);
-        if (blockBtn) {
-            blockBtn.interactable = block.active;
+        const priceLabel = block.getComponentInChildren(Label);
+        if (priceLabel && !unlocked) {
+            this.applyLockedRowLabel(item, block, priceLabel, unlocked);
         }
+        block.active = !unlocked;
     }
 
     private placeSavedCulture(cell: Node, cultureKey: BalanceCultureKey) {
@@ -435,11 +588,13 @@ export class VegetableMenuHandler extends Component {
 
     private closeMenu() {
         this.node.active = false;
-        const scene = director.getScene();
-        if (scene) {
-            const slots = scene.getComponentsInChildren(SlotMenuHandler);
-            for (let i = 0; i < slots.length; i++) {
-                slots[i].notifyMenuClosed();
+        if (this.allowPlacement) {
+            const scene = director.getScene();
+            if (scene) {
+                const slots = scene.getComponentsInChildren(SlotMenuHandler);
+                for (let i = 0; i < slots.length; i++) {
+                    slots[i].notifyMenuClosed();
+                }
             }
         }
         console.log('[VegetableMenuHandler] Меню закрыто');
@@ -448,6 +603,8 @@ export class VegetableMenuHandler extends Component {
     onDestroy() {
         if (this.closeButton?.isValid) {
             this.closeButton.node.off(Button.EventType.CLICK, this.closeMenu, this);
+            this.closeButton.node.off(Node.EventType.TOUCH_END, this.closeMenu, this);
+            this.closeButton.node.off(Node.EventType.MOUSE_UP, this.closeMenu, this);
         }
     }
 }

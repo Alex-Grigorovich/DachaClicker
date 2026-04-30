@@ -1,6 +1,7 @@
 import { _decorator, Component, Node, Button, tween, Vec3, director } from 'cc';
+import { ExclusiveUIPanelId, closeOtherExclusivePanels } from './ExclusiveUIPanels';
 import { VegetableMenuHandler } from './VegetableMenuHandler';
-import { PlantFieldState } from './PlantFieldState';
+import { VegClickMoney } from './VegClickMoney';
 import { AdaptiveScale } from './ResolutionAdapter';
 
 const { ccclass, property } = _decorator;
@@ -8,10 +9,12 @@ const { ccclass, property } = _decorator;
 export class SlotMenuHandler extends Component {
     @property({ type: Node, tooltip: 'Ссылка на VegetableList (оставь пустым — найдётся автоматически)' })
     menuPanel: Node = null;
+
+    @property({ tooltip: 'Имя ноды меню выставления культур' })
+    menuNodeName: string = 'VegetableList';
+
     @property({ tooltip: 'Использовать анимацию открытия/закрытия' })
     useAnimation: boolean = true;
-    /** Совпадает с VegetableMenuHandler: куда кладётся префаб овоща. */
-    private readonly CONTENT_NAME = 'Content';
     private _isOpen: boolean = false;
     private _clickHandlerAdded: boolean = false;
     onLoad() {
@@ -34,9 +37,13 @@ export class SlotMenuHandler extends Component {
     }
 
     public openMenu = () => {
-        if (this.cellHasPlacedFood()) {
+        /** Клик по Cell с посаженным префабом: урожай через VegClickMoney (иначе открывается меню посадки). */
+        const clicker = this.node.getComponentInChildren(VegClickMoney);
+        if (clicker?.tryHarvestFromCellButton()) {
             return;
         }
+
+        closeOtherExclusivePanels(ExclusiveUIPanelId.VegetableList);
         const menuHandler = this.resolveMenuHandler();
         if (!menuHandler) {
             console.error(`[SlotMenuHandler] ❌ VegetableList не найден!`);
@@ -44,12 +51,23 @@ export class SlotMenuHandler extends Component {
         }
         this.menuPanel = menuHandler.node;
         menuHandler.setTargetCell(this.node);
-        if (this._isOpen) return;
-        this._isOpen = true;
-        this.menuPanel.active = true;
+
         const adapter = director.getScene()?.getComponentInChildren(AdaptiveScale);
         const endScale = adapter ? adapter.fitVegetableList(false) : 1;
         const endV = new Vec3(endScale, endScale, 1);
+
+        /* Уже открыто — меняем только целевой слот и подгоняем масштаб (повторный клик по другому Cell или после странных состояний). */
+        if (this.menuPanel.active) {
+            if (adapter) {
+                adapter.fitVegetableList(true);
+            }
+            this._isOpen = true;
+            console.log(`[SlotMenuHandler] Цель слота обновлена: ${this.node.name}`);
+            return;
+        }
+
+        this._isOpen = true;
+        this.menuPanel.active = true;
         console.log(`[SlotMenuHandler] 🚀 Открыто меню для: ${this.node.name}`);
         if (this.useAnimation) {
             this.menuPanel.scale = new Vec3(0, 0, 0);
@@ -77,10 +95,6 @@ export class SlotMenuHandler extends Component {
         }
     };
 
-    private cellHasPlacedFood(): boolean {
-        return PlantFieldState.getInstance().isOccupied(this.node, this.CONTENT_NAME);
-    }
-
     /** Меню скрыто внешним обработчиком (выбор еды или кнопка закрытия) — сбрасываем флаг. */
     public notifyMenuClosed() {
         this._isOpen = false;
@@ -92,30 +106,81 @@ export class SlotMenuHandler extends Component {
     }
 
     private resolveMenuHandler(): VegetableMenuHandler | null {
+        const requestedMenuName = this.getRequestedMenuName();
+        const scene = director.getScene();
+
+        /** Только меню посадки в слот — не VegetableListUnlocked. */
+        const isPlacementCandidate = (h: VegetableMenuHandler | null): h is VegetableMenuHandler =>
+            !!(
+                h?.node?.isValid &&
+                h.node.name !== 'VegetableListUnlocked' &&
+                h.allowPlacement !== false
+            );
+
+        if (scene) {
+            const byName = this.findNodeDeep(scene, requestedMenuName);
+            if (byName?.isValid) {
+                const byNameHandler = byName.getComponent(VegetableMenuHandler);
+                if (byNameHandler && isPlacementCandidate(byNameHandler)) {
+                    this.menuPanel = byNameHandler.node;
+                    console.log(`[SlotMenuHandler] ✅ ${requestedMenuName} найден по имени`);
+                    return byNameHandler;
+                }
+                if (byNameHandler && !isPlacementCandidate(byNameHandler)) {
+                    console.warn(
+                        `[SlotMenuHandler] Нода "${requestedMenuName}" найдена, но это не меню посадки — проверь компонент и имя VegetableListUnlocked.`,
+                    );
+                }
+            }
+        }
+
         if (this.menuPanel?.isValid) {
             const existing = this.menuPanel.getComponent(VegetableMenuHandler);
-            if (existing) {
+            if (existing && this.menuPanel.name === requestedMenuName && isPlacementCandidate(existing)) {
                 return existing;
             }
         }
 
-        const scene = director.getScene();
         if (!scene) {
             return null;
         }
 
-        const found = scene.getComponentInChildren(VegetableMenuHandler);
-        if (found) {
-            this.menuPanel = found.node;
-            console.log('[SlotMenuHandler] ✅ VegetableList найден через VegetableMenuHandler');
-        } else {
-            console.warn('[SlotMenuHandler] ⚠️ VegetableMenuHandler не найден в сцене');
+        const handlers = scene.getComponentsInChildren(VegetableMenuHandler);
+
+        const found =
+            handlers.find(h => h.node?.isValid && h.node.name === requestedMenuName && isPlacementCandidate(h)) ??
+            handlers.find(h => isPlacementCandidate(h));
+        if (!found) {
+            console.warn(
+                `[SlotMenuHandler] ⚠️ Нет подходящего VegetableMenuHandler для слотов (ожидали ноду "${requestedMenuName}", без VegetableListUnlocked).`,
+            );
+            return null;
         }
+        this.menuPanel = found.node;
+        console.log(`[SlotMenuHandler] ✅ ${found.node.name} найден через VegetableMenuHandler`);
         return found;
     }
 
     private resolveMenuPanel(): Node | null {
         return this.resolveMenuHandler()?.node ?? null;
+    }
+
+    private findNodeDeep(root: Node, name: string): Node | null {
+        if (root.name === name) {
+            return root;
+        }
+        for (const child of root.children) {
+            const found = this.findNodeDeep(child, name);
+            if (found) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    private getRequestedMenuName(): string {
+        const raw = `${this.menuNodeName ?? ''}`.trim();
+        return raw || 'VegetableList';
     }
 
     onDestroy() {

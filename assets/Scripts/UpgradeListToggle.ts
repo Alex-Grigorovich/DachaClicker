@@ -1,4 +1,5 @@
 import { _decorator, Button, Component, director, Node, tween, Tween, Vec3 } from 'cc';
+import { ExclusiveUIPanelId, closeOtherExclusivePanels } from './ExclusiveUIPanels';
 import { AdaptiveScale } from './ResolutionAdapter';
 import { UpgradeListPanel } from './UpgradeListPanel';
 
@@ -11,6 +12,9 @@ const { ccclass, property } = _decorator;
  */
 @ccclass('UpgradeListToggle')
 export class UpgradeListToggle extends Component {
+    @property({ type: Node, tooltip: 'Корень поиска нод (пусто — вся сцена).' })
+    searchRoot: Node | null = null;
+
     @property({ type: Node, tooltip: 'Кнопка (например ButtonsUpgrade). Пусто — ищем по имени в сцене.' })
     trigger: Node | null = null;
 
@@ -28,6 +32,9 @@ export class UpgradeListToggle extends Component {
 
     @property({ tooltip: 'Длительность закрытия (с)' })
     closeDuration: number = 0.18;
+
+    @property({ type: AdaptiveScale, tooltip: 'Явная ссылка на AdaptiveScale (пусто — ищем в сцене).' })
+    adaptiveScale: AdaptiveScale | null = null;
 
     /** Подписка на все cc.Button под ButtonsUpgrade, чтобы клик по детям (иконка) срабатывал. */
     private _triggerClickButtons: Button[] = [];
@@ -71,11 +78,12 @@ export class UpgradeListToggle extends Component {
 
     private resolveNodes() {
         const scene = director.getScene();
+        const searchBase = this.searchRoot?.isValid ? this.searchRoot : scene;
         if (!this.trigger?.isValid) {
-            this.trigger = scene ? this.findDeep(scene, 'ButtonsUpgrade') : null;
+            this.trigger = searchBase ? this.findDeep(searchBase, 'ButtonsUpgrade') : null;
         }
         if (!this.upgradeList?.isValid) {
-            this.upgradeList = scene ? this.findDeep(scene, 'UpgradeList') : null;
+            this.upgradeList = searchBase ? this.findDeep(searchBase, 'UpgradeList') : null;
         }
         if (!this.trigger) {
             console.warn('[UpgradeListToggle] Нода ButtonsUpgrade не найдена');
@@ -233,12 +241,16 @@ export class UpgradeListToggle extends Component {
         if (!list) {
             return;
         }
+        if (!list.active) {
+            this._animating = false;
+        }
         if (this._animating) {
             return;
         }
         if (list.active) {
             this.closePanel();
         } else {
+            closeOtherExclusivePanels(ExclusiveUIPanelId.UpgradeList);
             this.openPanel();
         }
     };
@@ -261,12 +273,18 @@ export class UpgradeListToggle extends Component {
 
     private openPanel() {
         const root = this.upgradeList!;
+        if (!root.active) {
+            this._animating = false;
+        }
         if (this._animating) {
             return;
         }
         if (!this.useAnimation) {
             root.active = true;
-            const adapter = director.getScene()?.getComponentInChildren(AdaptiveScale);
+            const adapter =
+                this.adaptiveScale && this.adaptiveScale.node?.isValid
+                    ? this.adaptiveScale
+                    : director.getScene()?.getComponentInChildren(AdaptiveScale);
             if (adapter) {
                 adapter.fitUpgradeList(true);
             } else {
@@ -276,7 +294,10 @@ export class UpgradeListToggle extends Component {
         }
         this._animating = true;
         Tween.stopAllByTarget(root);
-        const adapter = director.getScene()?.getComponentInChildren(AdaptiveScale);
+        const adapter =
+            this.adaptiveScale && this.adaptiveScale.node?.isValid
+                ? this.adaptiveScale
+                : director.getScene()?.getComponentInChildren(AdaptiveScale);
         const endS = adapter ? adapter.fitUpgradeList(false) : 1;
         const endV = new Vec3(endS, endS, 1);
 
