@@ -9,6 +9,7 @@ export interface BalanceCultureDef {
     rowName: string;
     prefabKey: BalanceCultureKey;
     baseClickReward: number;
+    passiveIncomePerSecond?: number;
     unlockCost: number;
     unlockedByDefault?: boolean;
     blockName?: string;
@@ -77,6 +78,8 @@ export interface BalanceData {
     fieldSlotUnlocks?: BalanceFieldSlotUnlockDef[];
     quests: BalanceQuestSection;
     upgrades: BalanceUpgradeDef[];
+    /** Макс. секунд оффлайн-пассивки за один заход (после — кэп). По умолчанию в коде, если не задано. */
+    offlineCapSeconds?: number;
 }
 
 export const DEFAULT_BALANCE_RESOURCE_PATH = 'balance/BALANCE_DATA';

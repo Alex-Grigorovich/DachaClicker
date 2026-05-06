@@ -87,6 +87,19 @@ export class PlantFieldState {
         return n;
     }
 
+    public countByCulture(key: PlantCultureKey): number {
+        if (!key) {
+            return 0;
+        }
+        let n = 0;
+        for (const v of this._cultureByCellUuid.values()) {
+            if (v === key) {
+                n++;
+            }
+        }
+        return n;
+    }
+
     private readCultureFromCellContent(cell: Node, contentName: string): PlantCultureKey {
         const content = cell.getChildByName(contentName);
         if (!content || content.children.length === 0) {

@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "offlineCapSeconds": 28800,
   "cultures": [
     {
       "key": "carrot",
@@ -7,6 +8,7 @@
       "rowName": "CellListCarrot",
       "prefabKey": "carrot",
       "baseClickReward": 4,
+      "passiveIncomePerSecond": 1,
       "unlockCost": 0,
       "unlockedByDefault": true,
       "menuOrder": 1
@@ -17,6 +19,7 @@
       "rowName": "CellListCabbage",
       "prefabKey": "cabbage",
       "baseClickReward": 11,
+      "passiveIncomePerSecond": 3,
       "unlockCost": 90,
       "unlockedByDefault": false,
       "blockName": "cellListBlockCabbage",
@@ -28,6 +31,7 @@
       "rowName": "CellListTomato",
       "prefabKey": "tomato",
       "baseClickReward": 28,
+      "passiveIncomePerSecond": 8,
       "unlockCost": 420,
       "unlockedByDefault": false,
       "blockName": "cellListBlockTomato",
@@ -39,6 +43,7 @@
       "rowName": "CellListChiliPepper",
       "prefabKey": "chili",
       "baseClickReward": 70,
+      "passiveIncomePerSecond": 20,
       "unlockCost": 1700,
       "unlockedByDefault": false,
       "blockName": "cellListBlockChiliPepper",
@@ -90,6 +95,7 @@
       "current_money",
       "planted_slots_count",
       "unlocked_cultures_count",
+      "passive_earned",
       "opened_slot_4",
       "opened_slot_5",
       "opened_slot_6"
@@ -394,6 +400,66 @@
             "amount": 1000
           }
         ]
+      },
+      {
+        "id": "quest_passive_first_gold",
+        "order": 16,
+        "group": "economy",
+        "title": "Первый пассивный доход",
+        "description": "Заработай 50 монет с автосбора (или оффлайна).",
+        "conditions": [
+          {
+            "key": "passive_earned",
+            "operator": ">=",
+            "value": 50
+          }
+        ],
+        "rewards": [
+          {
+            "type": "money",
+            "amount": 80
+          }
+        ]
+      },
+      {
+        "id": "quest_passive_steady",
+        "order": 17,
+        "group": "economy",
+        "title": "Стабильный автосбор",
+        "description": "Накопи 400 монет с автосбора за всё время.",
+        "conditions": [
+          {
+            "key": "passive_earned",
+            "operator": ">=",
+            "value": 400
+          }
+        ],
+        "rewards": [
+          {
+            "type": "money",
+            "amount": 200
+          }
+        ]
+      },
+      {
+        "id": "quest_passive_big",
+        "order": 18,
+        "group": "economy",
+        "title": "Большой пассивный вклад",
+        "description": "Накопи 2500 монет с автосбора за всё время.",
+        "conditions": [
+          {
+            "key": "passive_earned",
+            "operator": ">=",
+            "value": 2500
+          }
+        ],
+        "rewards": [
+          {
+            "type": "money",
+            "amount": 500
+          }
+        ]
       }
     ],
     "minimal_first_implementation": [
@@ -404,7 +470,8 @@
       "quest_fill_3_start_slots",
       "quest_unlock_first_new_crop",
       "quest_fill_4_slots",
-      "quest_fill_5_slots"
+      "quest_fill_5_slots",
+      "quest_passive_first_gold"
     ]
   },
   "upgrades": [
@@ -563,10 +630,42 @@
       "title": "Автосбор",
       "description": "Раз в несколько секунд культура приносит доход без клика.",
       "category": "future_system",
-      "effectType": "enable_passive_income",
+      "effectType": "auto_collect_unlock",
       "effectValues": [1],
-      "costs": [0],
-      "maxLevel": 1
+      "costs": [3500],
+      "maxLevel": 1,
+      "unlockCondition": {
+        "type": "earned_money",
+        "value": 1000
+      }
+    },
+    {
+      "id": "passive_income",
+      "title": "Урожай без клика",
+      "description": "Увеличивает пассивный доход всех посаженных культур.",
+      "category": "future_system",
+      "effectType": "passive_income_bonus_percent",
+      "effectValues": [15, 20, 25],
+      "costs": [2000, 5000, 12000],
+      "maxLevel": 3,
+      "unlockCondition": {
+        "type": "earned_money",
+        "value": 900
+      }
+    },
+    {
+      "id": "auto_collect_efficiency",
+      "title": "Эффективный автосбор",
+      "description": "Повышает результативность автосбора.",
+      "category": "future_system",
+      "effectType": "auto_collect_efficiency_percent",
+      "effectValues": [10, 15, 20],
+      "costs": [4500, 11000, 25000],
+      "maxLevel": 3,
+      "unlockCondition": {
+        "type": "culture_unlocked",
+        "cultureKey": "tomato"
+      }
     },
     {
       "id": "growth_boost",

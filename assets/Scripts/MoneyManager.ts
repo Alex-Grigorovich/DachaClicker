@@ -1,6 +1,7 @@
 import { _decorator, Component, Label } from 'cc';
-import { formatMoneyDisplay } from './formatMoneyDisplay';
+import { formatMoneyDisplay, formatPassiveIncomePerSecond } from './formatMoneyDisplay';
 import { notifyProgressChanged } from './ProgressBridge';
+import { PassiveIncomeManager } from './PassiveIncomeManager';
 
 
 
@@ -15,6 +16,12 @@ export class MoneyManager extends Component {
     @property({ type: Label, tooltip: 'Label с деньгами (MoneyTextCount)' })
 
     moneyLabel: Label = null;
+
+    @property({
+        type: Label,
+        tooltip: 'Индикатор пассивного дохода +X/с (например Label на ноде MoneyDPS); иначе ищем MoneyDPS рядом с moneyLabel',
+    })
+    passiveIncomeLabel: Label | null = null;
 
 
 
@@ -80,10 +87,15 @@ export class MoneyManager extends Component {
 
         this.applyStartingBalance();
 
-
+        this.bindPassiveIncomeLabelIfNeeded();
+        this.syncPassiveIncomeLabel();
 
         console.log(`[MoneyManager] ✅ Singleton initialized | Баланс: ${this._balance}`);
 
+    }
+
+    update() {
+        this.syncPassiveIncomeLabel();
     }
 
 
@@ -118,6 +130,21 @@ export class MoneyManager extends Component {
 
         console.log(`[MoneyManager] 💰 Начальный баланс: ${this._balance}`);
 
+    }
+
+    private bindPassiveIncomeLabelIfNeeded() {
+        if (this.passiveIncomeLabel?.node?.isValid) {
+            return;
+        }
+        const parent = this.moneyLabel?.node?.parent;
+        if (!parent?.isValid) {
+            return;
+        }
+        const dps = parent.getChildByName('MoneyDPS');
+        const lbl = dps?.getComponent(Label) ?? null;
+        if (lbl) {
+            this.passiveIncomeLabel = lbl;
+        }
     }
 
 
@@ -223,7 +250,17 @@ export class MoneyManager extends Component {
         }
 
         this.moneyLabel.string = formatMoneyDisplay(this._balance);
+        this.syncPassiveIncomeLabel();
 
+    }
+
+    private syncPassiveIncomeLabel() {
+        this.bindPassiveIncomeLabelIfNeeded();
+        if (!this.passiveIncomeLabel?.node?.isValid) {
+            return;
+        }
+        const rate = PassiveIncomeManager.getCurrentIncomePerSecond();
+        this.passiveIncomeLabel.string = formatPassiveIncomePerSecond(rate);
     }
 
 }

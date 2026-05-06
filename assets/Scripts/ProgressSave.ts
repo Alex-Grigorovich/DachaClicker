@@ -9,7 +9,7 @@ import { PlantCultureKey } from './PlantFieldState';
  * - Поля, которых не было в старой версии, заполняются из `createDefaultProgressSave()`.
  * - Сейв с версией новее клиента: предупреждение в лог, читаем совместимые поля, при записи версия снова станет актуальной (лишнее из JSON не сохраняем, если не в типе).
  */
-export const PROGRESS_SAVE_VERSION = 3;
+export const PROGRESS_SAVE_VERSION = 4;
 
 /** Не переименовывать: уже лежит у игроков. */
 export const PROGRESS_STORAGE_KEY = 'farm_clicker_progress_v1';
@@ -36,9 +36,9 @@ export const PROGRESS_SAVE_MIGRATION_PLAN: ProgressSavePlannedMigration[] = [
     },
     {
         toVersion: 4,
-        goal: 'Сейв UI состояния апгрейд-панели и служебных флагов при необходимости.',
-        newFields: ['ui.upgradeListState'],
-        notes: 'Опционально, только если понадобится продуктово.',
+        goal: 'Добавить состояние пассивного дохода и квестовую метрику passive_earned.',
+        newFields: ['quests.passiveEarned', 'passiveIncome'],
+        notes: 'Нужно для пассивного дохода/автосбора и корректной квестовой статистики.',
     },
 ];
 
@@ -66,6 +66,13 @@ export interface SavedCellLockState {
 export interface SavedQuestState {
     activeIndex: number;
     totalClicks: number;
+    passiveEarned: number;
+}
+
+export interface SavedPassiveIncomeState {
+    lastSessionTimestamp: number;
+    autoCollectEnabled: boolean;
+    autoCollectEfficiency: number;
 }
 
 export interface ProgressSaveData {
@@ -78,6 +85,7 @@ export interface ProgressSaveData {
     quests: SavedQuestState;
     /** Уровни апгрейдов: id из BALANCE_DATA → купленный уровень (0 = не куплен, 1 = первая ступень и т.д.). */
     upgrades: SavedUpgradeLevels;
+    passiveIncome: SavedPassiveIncomeState;
 }
 
 export function createDefaultProgressSave(): ProgressSaveData {
@@ -94,8 +102,14 @@ export function createDefaultProgressSave(): ProgressSaveData {
         quests: {
             activeIndex: 0,
             totalClicks: 0,
+            passiveEarned: 0,
         },
         upgrades: {},
+        passiveIncome: {
+            lastSessionTimestamp: Date.now(),
+            autoCollectEnabled: false,
+            autoCollectEfficiency: 1,
+        },
     };
 }
 
@@ -155,6 +169,18 @@ function mergePartialWithDefaults(parsed: Partial<ProgressSaveData> & { version?
             ...base.quests,
             ...(parsed.quests ?? {}),
         },
+        passiveIncome: {
+            ...base.passiveIncome,
+            ...(parsed.passiveIncome ?? {}),
+            autoCollectEnabled: !!(parsed.passiveIncome as SavedPassiveIncomeState | undefined)?.autoCollectEnabled,
+            autoCollectEfficiency: Math.max(
+                0,
+                Number((parsed.passiveIncome as SavedPassiveIncomeState | undefined)?.autoCollectEfficiency ?? base.passiveIncome.autoCollectEfficiency) || 0,
+            ),
+            lastSessionTimestamp: clampNonNegativeInt(
+                Number((parsed.passiveIncome as SavedPassiveIncomeState | undefined)?.lastSessionTimestamp ?? base.passiveIncome.lastSessionTimestamp),
+            ),
+        },
         fieldCells: Array.isArray(parsed.fieldCells) ? parsed.fieldCells : [],
         unlockedCultures: Array.isArray(parsed.unlockedCultures) ? parsed.unlockedCultures : [],
         cellLocks: Array.isArray(parsed.cellLocks) ? parsed.cellLocks : [],
@@ -205,6 +231,21 @@ const MIGRATIONS: MigrationStep[] = [
             cellLocks: withLockSlotId,
         };
     },
+    // 3 -> 4: добавлены passiveIncome и passive_earned в quests
+    data => ({
+        ...data,
+        version: 4,
+        quests: {
+            activeIndex: clampNonNegativeInt(data.quests?.activeIndex ?? 0),
+            totalClicks: clampNonNegativeInt(data.quests?.totalClicks ?? 0),
+            passiveEarned: clampNonNegativeInt((data.quests as SavedQuestState | undefined)?.passiveEarned ?? 0),
+        },
+        passiveIncome: {
+            lastSessionTimestamp: clampNonNegativeInt(data.savedAt || Date.now()),
+            autoCollectEnabled: false,
+            autoCollectEfficiency: 1,
+        },
+    }),
 ];
 
 /**

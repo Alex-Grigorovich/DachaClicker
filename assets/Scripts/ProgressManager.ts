@@ -2,10 +2,12 @@ import { _decorator, Component, director, Node } from 'cc';
 import { CellLockHandler } from './CellLockHandler';
 import { MoneyManager } from './MoneyManager';
 import { PlantFieldState } from './PlantFieldState';
+import { PassiveIncomeManager } from './PassiveIncomeManager';
 import { notifyQuestProgress } from './QuestBridge';
 import { QuestManager } from './QuestManager';
 import { setProgressChangedNotifier, setProgressPersistenceDisabled } from './ProgressBridge';
 import { SlotMenuHandler } from './SlotMenuHandler';
+import { UpgradeManager } from './UpgradeManager';
 import {
     createDefaultProgressSave,
     ProgressSaveData,
@@ -41,6 +43,11 @@ export class ProgressManager extends Component {
     private _restoreCompleted = false;
     private _pendingSaveRequested = false;
     private readonly _delayedSave = () => this.saveNow();
+
+    /** После восстановления: начислить оффлайн-пассивку от этого timestamp (мс). */
+    private _offlineLastSessionMs: number | null = null;
+    private _offlineApplyAttempts = 0;
+    private readonly _applyOfflineIncomeTick = () => this.tryApplyOfflineIncomeOnce();
 
     public static getInstance(): ProgressManager | null {
         return ProgressManager._instance;
@@ -150,6 +157,11 @@ export class ProgressManager extends Component {
                 culture: PlantFieldState.getInstance().getCellCulture(cell),
             })),
             upgrades: upgradeProgressGetSnapshot(),
+            passiveIncome: {
+                lastSessionTimestamp: Date.now(),
+                autoCollectEnabled: PassiveIncomeManager.getAutoCollectEnabled(),
+                autoCollectEfficiency: PassiveIncomeManager.getAutoCollectEfficiency(),
+            },
         };
 
         writeProgressSave(save);
@@ -206,6 +218,11 @@ export class ProgressManager extends Component {
             }
 
             upgradeProgressReplaceAll(save.upgrades);
+            PassiveIncomeManager.setAutoCollectEnabled(!!save.passiveIncome?.autoCollectEnabled);
+            PassiveIncomeManager.setAutoCollectEfficiency(Number(save.passiveIncome?.autoCollectEfficiency ?? 1));
+
+            const ts = save.passiveIncome?.lastSessionTimestamp ?? save.savedAt;
+            this._offlineLastSessionMs = typeof ts === 'number' && Number.isFinite(ts) ? Math.floor(ts) : Date.now();
 
             notifyQuestProgress();
         } finally {
@@ -264,12 +281,34 @@ export class ProgressManager extends Component {
     private finishRestoreCycle() {
         this._restoreCompleted = true;
         this.startPeriodicAutosave();
+        if (!this.disableSaving && this._offlineLastSessionMs !== null) {
+            this._offlineApplyAttempts = 0;
+            this.scheduleOnce(this._applyOfflineIncomeTick, 0);
+        }
         if (this._pendingSaveRequested) {
             this._pendingSaveRequested = false;
             this.saveSoon();
         }
     }
 
+    private tryApplyOfflineIncomeOnce() {
+        if (this.disableSaving || this._offlineLastSessionMs === null) {
+            return;
+        }
+        if (!PassiveIncomeManager.isReadyForOffline() || !UpgradeManager.isReady()) {
+            if (this._offlineApplyAttempts < 120) {
+                this._offlineApplyAttempts++;
+                this.scheduleOnce(this._applyOfflineIncomeTick, 0.05);
+            }
+            return;
+        }
+        const ts = this._offlineLastSessionMs;
+        this._offlineLastSessionMs = null;
+        this._offlineApplyAttempts = 0;
+        PassiveIncomeManager.applyOfflineCatchUp(ts);
+        notifyQuestProgress();
+        this.saveSoon();
+    }
     private findQuestManager(root: Node): QuestManager | null {
         const stack: Node[] = [root];
         while (stack.length) {

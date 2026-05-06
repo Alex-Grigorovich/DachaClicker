@@ -1,7 +1,10 @@
-import { _decorator, Component, director, Label, Layout, Node, ProgressBar, screen, UITransform, Vec3, Widget } from 'cc';
+import { _decorator, Component, director, Label, Layout, Mask, Node, ProgressBar, screen, UITransform, Vec3, Widget } from 'cc';
+import { EDITOR_NOT_IN_PREVIEW } from 'cc/env';
 import { LevelProgressController } from './LevelProgressController';
 
 const { ccclass, property, executeInEditMode } = _decorator;
+
+const BACKGROUND_CLIP_NODE_NAME = 'BackgroundClip';
 
 @ccclass('AdaptiveScale')
 @executeInEditMode   // чтобы работало и в редакторе при смене ориентации
@@ -160,6 +163,36 @@ export class AdaptiveScale extends Component {
             'Для тестов: отключить чтение и запись прогресса. При включении старый сейв не восстанавливается, новые изменения не сохраняются.',
     })
     disableProgressSaving: boolean = false;
+
+    @property({
+        type: Node,
+        tooltip:
+            'Фон под Canvas (cover без сплющивания). Пусто — ищем узел Background под screenRoot.',
+    })
+    backgroundCoverNode: Node | null = null;
+
+    @property({
+        tooltip:
+            'Режим фона как «cover»: сохраняем пропорции арта, лишнее обрезаем по границам Canvas (маска на рантайме).',
+    })
+    backgroundCoverEnabled: boolean = true;
+
+    @property({
+        tooltip:
+            'Базовая ширина арта для расчёта соотношения сторон (должна совпадать с дизайн-размером спрайта до растягивания виджетом).',
+    })
+    backgroundCoverDesignWidth: number = 1280;
+
+    @property({
+        tooltip: 'Базовая высота арта для расчёта соотношения сторон.',
+    })
+    backgroundCoverDesignHeight: number = 720;
+
+    @property({
+        tooltip:
+            'Оборачивать фон в узел с Mask по размеру Canvas, чтобы края не вылезали за экран (только в игре/превью, не в режиме редактирования сцены).',
+    })
+    backgroundCoverClipEnabled: boolean = true;
 
     private originalScales = new Map<Node, number>();
     private vegetableListBaseScale = 1;
@@ -394,6 +427,113 @@ export class AdaptiveScale extends Component {
         this.fitVegetableList(true);
         this.fitVegetableListUnlocked(true);
         this.fitUpgradeList(true);
+        this.applyBackgroundCover();
+    }
+
+    /**
+     * Фон без некорректного растягивания: масштаб как у object-fit: cover (меньшая сторона заполняется,
+     * большая обрезается). Widget на фоне отключается — иначе он перезапишет размер.
+     */
+    private applyBackgroundCover() {
+        if (!this.backgroundCoverEnabled || EDITOR_NOT_IN_PREVIEW) {
+            return;
+        }
+        const canvasRoot = this.screenRoot;
+        if (!canvasRoot?.isValid) {
+            return;
+        }
+        const bg = this.resolveBackgroundCoverTarget();
+        if (!bg?.isValid) {
+            return;
+        }
+        const screenUi = canvasRoot.getComponent(UITransform);
+        if (!screenUi) {
+            return;
+        }
+
+        const widget = bg.getComponent(Widget);
+        if (widget) {
+            widget.enabled = false;
+        }
+
+        if (this.backgroundCoverClipEnabled) {
+            this.ensureBackgroundClipHolder(bg, canvasRoot, screenUi);
+        }
+
+        const bgUi = bg.getComponent(UITransform);
+        if (!bgUi) {
+            return;
+        }
+
+        const rw = this.backgroundCoverDesignWidth;
+        const rh = this.backgroundCoverDesignHeight;
+        if (rw <= 0 || rh <= 0) {
+            return;
+        }
+
+        const pw = screenUi.contentSize.width;
+        const ph = screenUi.contentSize.height;
+        const coverMul = Math.max(pw / rw, ph / rh);
+        bgUi.setContentSize(rw * coverMul, rh * coverMul);
+        bg.setPosition(0, 0, 0);
+    }
+
+    private resolveBackgroundCoverTarget(): Node | null {
+        if (this.backgroundCoverNode?.isValid) {
+            return this.backgroundCoverNode;
+        }
+        const root = this.screenRoot;
+        if (!root?.isValid) {
+            return null;
+        }
+        const direct = root.getChildByName('Background');
+        if (direct) {
+            return direct;
+        }
+        const holder = root.getChildByName(BACKGROUND_CLIP_NODE_NAME);
+        return holder?.getChildByName('Background') ?? null;
+    }
+
+    /**
+     * Обёртка с Mask = область видимости Canvas; создаётся один раз на рантайме (не попадает в .scene).
+     */
+    private ensureBackgroundClipHolder(bg: Node, canvasRoot: Node, screenUi: UITransform) {
+        if (bg.parent?.name === BACKGROUND_CLIP_NODE_NAME) {
+            this.syncBackgroundClipHolder(screenUi);
+            return;
+        }
+        const canvasUi = canvasRoot.getComponent(UITransform);
+        if (!canvasUi) {
+            return;
+        }
+
+        const idx = Math.max(0, bg.getSiblingIndex());
+        const holder = new Node(BACKGROUND_CLIP_NODE_NAME);
+        const hUi = holder.addComponent(UITransform);
+        hUi.anchorPoint.set(canvasUi.anchorPoint.x, canvasUi.anchorPoint.y);
+        holder.setPosition(0, 0, 0);
+
+        const mask = holder.addComponent(Mask);
+        mask.type = Mask.Type.GRAPHICS_RECT;
+
+        canvasRoot.insertChild(holder, idx);
+        bg.removeFromParent();
+        holder.addChild(bg);
+
+        this.syncBackgroundClipHolder(screenUi);
+    }
+
+    private syncBackgroundClipHolder(screenUi: UITransform) {
+        const holder = this.screenRoot?.getChildByName(BACKGROUND_CLIP_NODE_NAME);
+        const hUi = holder?.getComponent(UITransform);
+        if (!hUi || !this.screenRoot?.isValid) {
+            return;
+        }
+        const canvasUi = this.screenRoot.getComponent(UITransform);
+        if (canvasUi) {
+            hUi.anchorPoint.set(canvasUi.anchorPoint.x, canvasUi.anchorPoint.y);
+        }
+        hUi.setContentSize(screenUi.contentSize.width, screenUi.contentSize.height);
     }
 
     /**

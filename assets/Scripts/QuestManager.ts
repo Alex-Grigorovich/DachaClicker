@@ -9,11 +9,12 @@ import {
     DEFAULT_BALANCE_RESOURCE_PATH,
     loadBalanceData,
 } from './BalanceData';
-import { setQuestClickNotifier, setQuestProgressNotifier } from './QuestBridge';
+import { setQuestClickNotifier, setQuestPassiveEarnedNotifier, setQuestProgressNotifier } from './QuestBridge';
 import { notifyProgressChanged } from './ProgressBridge';
 import { readProgressSave, SavedQuestState } from './ProgressSave';
 import { UnlockManager } from './UnlockManager';
 import { UpgradeManager } from './UpgradeManager';
+import { PassiveIncomeManager } from './PassiveIncomeManager';
 
 const { ccclass, property } = _decorator;
 
@@ -60,6 +61,7 @@ export class QuestManager extends Component {
     private _quests: BalanceQuestDef[] = [];
     private _activeIndex = 0;
     private _totalClicks = 0;
+    private _passiveEarned = 0;
     private _loaded = false;
     /** Не реагировать на notify во время выдачи наград (unlock_slot вызывает notify). */
     private _grantPhase = false;
@@ -85,12 +87,18 @@ export class QuestManager extends Component {
             this.tryAdvanceQuests();
             notifyProgressChanged();
         });
+        setQuestPassiveEarnedNotifier((amount: number) => {
+            this._passiveEarned += Math.max(0, Math.floor(Number(amount) || 0));
+            this.tryAdvanceQuests();
+            notifyProgressChanged();
+        });
 
         PlantFieldState.getInstance().registerFieldCells(this.fieldCells, this._contentName);
     }
 
     start() {
         UpgradeManager.initialize(this.questsResourcePath);
+        PassiveIncomeManager.initialize(this.questsResourcePath);
         loadBalanceData(this.questsResourcePath, (err, data) => {
             if (err || !data) {
                 console.error('[QuestManager] Не удалось загрузить баланс/квесты:', err);
@@ -116,7 +124,12 @@ export class QuestManager extends Component {
     onDestroy() {
         setQuestClickNotifier(null);
         setQuestProgressNotifier(null);
+        setQuestPassiveEarnedNotifier(null);
         this.unschedule(this._hideQuestDoneIcon);
+    }
+
+    update(dt: number) {
+        PassiveIncomeManager.step(dt);
     }
 
     private setLabelText(text: string) {
@@ -129,6 +142,7 @@ export class QuestManager extends Component {
         return {
             activeIndex: this._activeIndex,
             totalClicks: this._totalClicks,
+            passiveEarned: this._passiveEarned,
         };
     }
 
@@ -141,6 +155,7 @@ export class QuestManager extends Component {
 
         this._activeIndex = Math.max(0, Math.floor(state.activeIndex || 0));
         this._totalClicks = Math.max(0, Math.floor(state.totalClicks || 0));
+        this._passiveEarned = Math.max(0, Math.floor(state.passiveEarned || 0));
     }
 
     public getFieldCells(): Node[] {
@@ -156,6 +171,8 @@ export class QuestManager extends Component {
                 return mm?.getTotalEarned() ?? 0;
             case 'current_money':
                 return mm?.getMoney() ?? 0;
+            case 'passive_earned':
+                return this._passiveEarned;
             case 'planted_slots_count':
                 return this.countPlantedSlots();
             case 'unlocked_cultures_count':

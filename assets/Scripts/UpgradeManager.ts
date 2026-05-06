@@ -216,6 +216,26 @@ export class UpgradeManager {
         return Math.max(0, Math.floor(value));
     }
 
+    public static getPassiveIncomePerSecond(basePerSecond: number): number {
+        let value = Math.max(0, basePerSecond);
+        const pct = this.getSummedPercentEffect('passive_income_bonus_percent');
+        if (pct > 0) {
+            value *= 1 + pct / 100;
+        }
+        return Math.max(0, value);
+    }
+
+    public static hasAutoCollectUnlock(): boolean {
+        return (
+            this.getSummedFlatEffect('auto_collect_unlock') > 0 ||
+            this.getSummedFlatEffect('enable_passive_income') > 0
+        );
+    }
+
+    public static getAutoCollectEfficiencyPercent(): number {
+        return this.getSummedPercentEffect('auto_collect_efficiency_percent');
+    }
+
     private static isUnlocked(def: BalanceUpgradeDef): boolean {
         const cond = def.unlockCondition;
         if (!cond?.type) {

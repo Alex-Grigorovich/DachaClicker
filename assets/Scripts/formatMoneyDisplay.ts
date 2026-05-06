@@ -24,3 +24,14 @@ export function formatMoneyDisplay(value: number): string {
     const s = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
     return `${s}m`;
 }
+
+/** Строка для пассивного дохода в MoneyDPS: `+12/с`, дробные значения до одного знака. */
+export function formatPassiveIncomePerSecond(perSecond: number): string {
+    const v = Math.max(0, Number(perSecond) || 0);
+    if (v <= 0) {
+        return '+0/с';
+    }
+    const rounded = v >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
+    const s = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+    return `+${s}/с`;
+}
