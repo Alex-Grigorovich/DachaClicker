@@ -2,6 +2,7 @@ import { DEFAULT_BALANCE_RESOURCE_PATH, BalanceCultureKey, BalanceUpgradeDef, lo
 import { MoneyManager } from './MoneyManager';
 import { upgradeProgressGetLevel, upgradeProgressSetLevel } from './UpgradeProgressStore';
 import { UnlockManager } from './UnlockManager';
+import { dlog } from './Debug';
 
 export type UpgradeBuyResultReason =
     | 'ok'
@@ -54,7 +55,7 @@ export class UpgradeManager {
                 }
             }
             this._inited = true;
-            console.log(`[UpgradeManager] ✅ Загружено апгрейдов: ${this._upgrades.length}`);
+            dlog(`[UpgradeManager] ✅ Загружено апгрейдов: ${this._upgrades.length}`);
         });
     }
 
@@ -143,7 +144,7 @@ export class UpgradeManager {
 
         const after = before + 1;
         upgradeProgressSetLevel(upgradeId, after);
-        console.log(`[UpgradeManager] 🛒 Куплен ${upgradeId}: ${before} -> ${after}, cost=${cost}`);
+        dlog(`[UpgradeManager] 🛒 Куплен ${upgradeId}: ${before} -> ${after}, cost=${cost}`);
         return {
             ok: true,
             reason: 'ok',

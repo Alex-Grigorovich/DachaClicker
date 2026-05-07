@@ -2,6 +2,7 @@ import { BalanceCultureDef, DEFAULT_BALANCE_RESOURCE_PATH, loadBalanceData } fro
 import { PlantCultureKey, PlantFieldState } from './PlantFieldState';
 import { notifyQuestPassiveEarned } from './QuestBridge';
 import { UpgradeManager } from './UpgradeManager';
+import { dlog } from './Debug';
 
 /** Ленивый доступ к MoneyManager — избегает циклического импорта с MoneyManager → PassiveIncomeManager. */
 function getMoneyManagerInstance(): import('./MoneyManager').MoneyManager | null {
@@ -50,7 +51,7 @@ export class PassiveIncomeManager {
             const capRaw = Number(data.offlineCapSeconds ?? 28800);
             this._offlineCapSeconds = Number.isFinite(capRaw) ? Math.max(60, Math.floor(capRaw)) : 28800;
             this._initialized = true;
-            console.log(`[PassiveIncomeManager] ✅ Загружено культур с пассивкой: ${this._incomeByCulture.size}`);
+            dlog(`[PassiveIncomeManager] ✅ Загружено культур с пассивкой: ${this._incomeByCulture.size}`);
         });
     }
 

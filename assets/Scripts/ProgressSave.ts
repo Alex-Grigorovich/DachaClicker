@@ -1,5 +1,6 @@
-import { sys } from 'cc';
+import { director, sys } from 'cc';
 import { PlantCultureKey } from './PlantFieldState';
+import { YandexSDKManager } from './YandexSDKManager';
 
 /**
  * Стратегия версий сейва:
@@ -9,7 +10,10 @@ import { PlantCultureKey } from './PlantFieldState';
  * - Поля, которых не было в старой версии, заполняются из `createDefaultProgressSave()`.
  * - Сейв с версией новее клиента: предупреждение в лог, читаем совместимые поля, при записи версия снова станет актуальной (лишнее из JSON не сохраняем, если не в типе).
  */
-export const PROGRESS_SAVE_VERSION = 4;
+export const PROGRESS_SAVE_VERSION = 5;
+
+/** Legacy: тот же ключ, что в TutorialManager (только для миграции 4→5). */
+const LEGACY_TUTORIAL_DONE_KEY = 'farm_clicker_tutorial_v1';
 
 /** Не переименовывать: уже лежит у игроков. */
 export const PROGRESS_STORAGE_KEY = 'farm_clicker_progress_v1';
@@ -39,6 +43,12 @@ export const PROGRESS_SAVE_MIGRATION_PLAN: ProgressSavePlannedMigration[] = [
         goal: 'Добавить состояние пассивного дохода и квестовую метрику passive_earned.',
         newFields: ['quests.passiveEarned', 'passiveIncome'],
         notes: 'Нужно для пассивного дохода/автосбора и корректной квестовой статистики.',
+    },
+    {
+        toVersion: 5,
+        goal: 'Флаг завершения туториала в сейве (синхрон с отдельным localStorage).',
+        newFields: ['tutorialCompleted'],
+        notes: 'Миграция подтягивает значение из legacy-ключа localStorage.',
     },
 ];
 
@@ -86,6 +96,8 @@ export interface ProgressSaveData {
     /** Уровни апгрейдов: id из BALANCE_DATA → купленный уровень (0 = не куплен, 1 = первая ступень и т.д.). */
     upgrades: SavedUpgradeLevels;
     passiveIncome: SavedPassiveIncomeState;
+    /** Прошёл ли игрок вводный туториал (дублирует legacy localStorage, см. TutorialManager). */
+    tutorialCompleted: boolean;
 }
 
 export function createDefaultProgressSave(): ProgressSaveData {
@@ -110,6 +122,7 @@ export function createDefaultProgressSave(): ProgressSaveData {
             autoCollectEnabled: false,
             autoCollectEfficiency: 1,
         },
+        tutorialCompleted: false,
     };
 }
 
@@ -185,6 +198,8 @@ function mergePartialWithDefaults(parsed: Partial<ProgressSaveData> & { version?
         unlockedCultures: Array.isArray(parsed.unlockedCultures) ? parsed.unlockedCultures : [],
         cellLocks: Array.isArray(parsed.cellLocks) ? parsed.cellLocks : [],
         upgrades: normalizeUpgradeLevels(parsed.upgrades),
+        tutorialCompleted:
+            typeof parsed.tutorialCompleted === 'boolean' ? parsed.tutorialCompleted : base.tutorialCompleted,
     };
 }
 
@@ -246,6 +261,20 @@ const MIGRATIONS: MigrationStep[] = [
             autoCollectEfficiency: 1,
         },
     }),
+    // 4 -> 5: tutorialCompleted; подтянуть из legacy localStorage один раз
+    data => {
+        let fromLegacy = false;
+        try {
+            fromLegacy = sys.localStorage.getItem(LEGACY_TUTORIAL_DONE_KEY) === '1';
+        } catch {
+            /* ignore */
+        }
+        return {
+            ...data,
+            version: 5,
+            tutorialCompleted: fromLegacy,
+        };
+    },
 ];
 
 /**
@@ -316,4 +345,41 @@ export function writeProgressSave(save: ProgressSaveData): void {
             savedAt: Date.now(),
         }),
     );
+}
+
+export async function cloudWrite(snapshot: ProgressSaveData): Promise<void> {
+    const sdk = YandexSDKManager.ensureInstance(director.getScene()) ?? YandexSDKManager.getInstance();
+    if (!sdk) {
+        throw new Error('YandexSDKManager instance not found');
+    }
+    await sdk.initialize();
+    const player = sdk.getPlayer() as { setData?: (data: unknown, flush?: boolean) => Promise<void> } | null;
+    if (!player?.setData) {
+        throw new Error('Yandex player.setData unavailable');
+    }
+    const payload: ProgressSaveData = {
+        ...snapshot,
+        version: PROGRESS_SAVE_VERSION,
+        savedAt: Date.now(),
+    };
+    await player.setData({ [PROGRESS_STORAGE_KEY]: payload }, true);
+}
+
+export async function cloudRead(): Promise<ProgressSaveData | null> {
+    const sdk = YandexSDKManager.ensureInstance(director.getScene()) ?? YandexSDKManager.getInstance();
+    if (!sdk) {
+        return null;
+    }
+    await sdk.initialize();
+    const player = sdk.getPlayer() as { getData?: (keys?: string[]) => Promise<Record<string, unknown>> } | null;
+    if (!player?.getData) {
+        return null;
+    }
+    const data = await player.getData([PROGRESS_STORAGE_KEY]);
+    const raw = data?.[PROGRESS_STORAGE_KEY];
+    if (!raw || typeof raw !== 'object') {
+        return null;
+    }
+    const merged = mergePartialWithDefaults(raw as Partial<ProgressSaveData> & { version?: number });
+    return migrateProgressSaveToLatest(merged);
 }

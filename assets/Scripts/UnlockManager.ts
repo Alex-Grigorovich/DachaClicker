@@ -68,4 +68,15 @@ export class UnlockManager {
         }
         return n;
     }
+
+    static unlockAll(items: BalanceCultureDef[]): void {
+        for (const item of items) {
+            if (!item?.key) {
+                continue;
+            }
+            this._cultures.add(item.key);
+        }
+        notifyQuestProgress();
+        notifyProgressChanged();
+    }
 }

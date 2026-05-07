@@ -8,12 +8,16 @@ import { QuestManager } from './QuestManager';
 import { setProgressChangedNotifier, setProgressPersistenceDisabled } from './ProgressBridge';
 import { SlotMenuHandler } from './SlotMenuHandler';
 import { UpgradeManager } from './UpgradeManager';
+import { dlog } from './Debug';
 import {
+    cloudRead,
+    cloudWrite,
     createDefaultProgressSave,
     ProgressSaveData,
     readProgressSave,
     writeProgressSave,
 } from './ProgressSave';
+import { TutorialManager } from './TutorialManager';
 import { VegetableMenuHandler } from './VegetableMenuHandler';
 import { upgradeProgressGetSnapshot, upgradeProgressReplaceAll } from './UpgradeProgressStore';
 
@@ -30,6 +34,9 @@ export class ProgressManager extends Component {
     @property({ tooltip: 'Резервный автосейв раз в N секунд. 0 = выключить' })
     autosaveInterval = 1;
 
+    @property({ tooltip: 'Задержка cloud-сейва после изменений (сек)' })
+    cloudSaveDelay = 30;
+
     @property({ tooltip: 'Сколько раз ждать готовности UI/баланса перед восстановлением поля' })
     restoreRetries = 20;
 
@@ -43,6 +50,7 @@ export class ProgressManager extends Component {
     private _restoreCompleted = false;
     private _pendingSaveRequested = false;
     private readonly _delayedSave = () => this.saveNow();
+    private readonly _delayedCloudSave = () => void this.saveCloudNow();
 
     /** После восстановления: начислить оффлайн-пассивку от этого timestamp (мс). */
     private _offlineLastSessionMs: number | null = null;
@@ -71,7 +79,7 @@ export class ProgressManager extends Component {
             return;
         }
         this._restoreCompleted = false;
-        this.scheduleOnce(() => this.restoreWhenReady(this.restoreRetries), 0);
+        void this.bootstrapRestoreFromBestSource();
     }
 
     onDestroy() {
@@ -101,7 +109,7 @@ export class ProgressManager extends Component {
         this._save = readProgressSave();
         this._restoreCompleted = false;
         this._pendingSaveRequested = false;
-        this.scheduleOnce(() => this.restoreWhenReady(this.restoreRetries), 0);
+        void this.bootstrapRestoreFromBestSource();
     }
 
     public saveSoon() {
@@ -138,6 +146,7 @@ export class ProgressManager extends Component {
 
         const save: ProgressSaveData = {
             ...createDefaultProgressSave(),
+            tutorialCompleted: TutorialManager.getInstance()?.hasCompletedTutorial() ?? false,
             money: {
                 balance: money?.getMoney() ?? 0,
                 totalEarned: money?.getTotalEarned() ?? 0,
@@ -166,11 +175,43 @@ export class ProgressManager extends Component {
 
         writeProgressSave(save);
         this._save = save;
+        this.scheduleCloudSave();
         const upg = Object.keys(save.upgrades).filter(id => (save.upgrades[id] ?? 0) > 0).length;
-        console.log(
+        dlog(
             `[ProgressManager] 💾 Сохранено: money=${save.money.balance}, planted=${save.fieldCells.filter(c => c.culture).length}, unlocked=${save.unlockedCultures.length}, upgrades>0=${upg}`,
         );
     };
+
+    private scheduleCloudSave() {
+        this.unschedule(this._delayedCloudSave);
+        this.scheduleOnce(this._delayedCloudSave, Math.max(0, this.cloudSaveDelay));
+    }
+
+    private async saveCloudNow() {
+        if (this.disableSaving || this._restoring || !this._save) {
+            return;
+        }
+        try {
+            await cloudWrite(this._save);
+        } catch (err) {
+            console.warn('[ProgressManager] cloud save failed, keep local save only', err);
+        }
+    }
+
+    private async bootstrapRestoreFromBestSource() {
+        const local = this._save;
+        let selected = local;
+        try {
+            const cloud = await cloudRead();
+            if (cloud && (!local || (cloud.savedAt ?? 0) > (local.savedAt ?? 0))) {
+                selected = cloud;
+            }
+        } catch (err) {
+            console.warn('[ProgressManager] cloud read failed, use local save', err);
+        }
+        this._save = selected;
+        this.scheduleOnce(() => this.restoreWhenReady(this.restoreRetries), 0);
+    }
 
     private restoreWhenReady(retriesLeft: number) {
         if (this.disableSaving) {

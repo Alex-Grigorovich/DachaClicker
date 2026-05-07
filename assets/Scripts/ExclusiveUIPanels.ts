@@ -7,6 +7,8 @@ export enum ExclusiveUIPanelId {
     VegetableListUnlocked = 'VegetableListUnlocked',
     UpgradeList = 'UpgradeList',
     Tasks = 'Tasks',
+    /** Режим туториала: закрыть игровые панели, не трогая ноду `TutorialRoot`. */
+    Tutorial = 'TutorialRoot',
 }
 
 function findDeep(root: Node | null, name: string): Node | null {
@@ -41,6 +43,18 @@ function forceHidePanel(node: Node | null | undefined): void {
 export function closeOtherExclusivePanels(keepOpen: ExclusiveUIPanelId, scene?: Scene | null): void {
     const s = scene ?? director.getScene();
     if (!s) {
+        return;
+    }
+
+    if (keepOpen === ExclusiveUIPanelId.Tutorial) {
+        forceHidePanel(findDeep(s, ExclusiveUIPanelId.VegetableList));
+        const slots = s.getComponentsInChildren(SlotMenuHandler);
+        for (let i = 0; i < slots.length; i++) {
+            slots[i].notifyMenuClosed();
+        }
+        forceHidePanel(findDeep(s, ExclusiveUIPanelId.VegetableListUnlocked));
+        forceHidePanel(findDeep(s, ExclusiveUIPanelId.UpgradeList));
+        forceHidePanel(findDeep(s, ExclusiveUIPanelId.Tasks));
         return;
     }
 

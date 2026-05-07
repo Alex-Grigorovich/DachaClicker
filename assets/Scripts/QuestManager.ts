@@ -3,12 +3,14 @@ import { MoneyManager } from './MoneyManager';
 import { VegetableMenuHandler } from './VegetableMenuHandler';
 import { CellLockHandler } from './CellLockHandler';
 import { PlantFieldState } from './PlantFieldState';
+import { dlog } from './Debug';
 import {
     BalanceQuestCondition,
     BalanceQuestDef,
     DEFAULT_BALANCE_RESOURCE_PATH,
     loadBalanceData,
 } from './BalanceData';
+import { LocalizationManager } from './LocalizationManager';
 import { setQuestClickNotifier, setQuestPassiveEarnedNotifier, setQuestProgressNotifier } from './QuestBridge';
 import { notifyProgressChanged } from './ProgressBridge';
 import { readProgressSave, SavedQuestState } from './ProgressSave';
@@ -97,6 +99,7 @@ export class QuestManager extends Component {
     }
 
     start() {
+        void LocalizationManager.init();
         UpgradeManager.initialize(this.questsResourcePath);
         PassiveIncomeManager.initialize(this.questsResourcePath);
         loadBalanceData(this.questsResourcePath, (err, data) => {
@@ -229,19 +232,34 @@ export class QuestManager extends Component {
             steps++;
             const quest = this._quests[this._activeIndex];
             if (!quest) {
-                this.setLabelText('Все задания выполнены!');
+                this.setLabelText(LocalizationManager.tryT('quests.all_done') ?? 'Все задания выполнены!');
                 return;
             }
 
             const allMet = quest.conditions.every(c => this.conditionMet(c));
             if (!allMet) {
-                this.setLabelText(`${quest.title}\n${quest.description}`);
+                const title = this.resolveQuestText(quest, true);
+                const desc = this.resolveQuestText(quest, false);
+                this.setLabelText(`${title}\n${desc}`);
                 return;
             }
 
             this.grantRewards(quest);
             this._activeIndex++;
         }
+    }
+
+    private resolveQuestText(quest: BalanceQuestDef, isTitle: boolean): string {
+        const lang = LocalizationManager.getLang();
+        const key = isTitle ? quest.titleKey : quest.descKey;
+        const fallback = isTitle ? quest.title : quest.description;
+        if (!key) {
+            return fallback;
+        }
+        if (lang === 'ru') {
+            return fallback;
+        }
+        return LocalizationManager.tryT(key) ?? fallback;
     }
 
     private grantRewards(quest: BalanceQuestDef) {
@@ -263,7 +281,7 @@ export class QuestManager extends Component {
                     }
                 }
             }
-            console.log(`[QuestManager] Выполнено: ${quest.id}`);
+            dlog(`[QuestManager] Выполнено: ${quest.id}`);
             this.flashQuestDoneIcon();
             this.playButtonTasksLift();
         } finally {

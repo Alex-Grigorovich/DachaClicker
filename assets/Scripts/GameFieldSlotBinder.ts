@@ -1,5 +1,6 @@
 import { _decorator, Component } from 'cc';
 import { SlotMenuHandler } from './SlotMenuHandler';
+import { dlog } from './Debug';
 
 const { ccclass, property } = _decorator;
 
@@ -36,7 +37,7 @@ export class GameFieldSlotBinder extends Component {
                 continue;
             }
             cell.addComponent(SlotMenuHandler);
-            console.log(`[GameFieldSlotBinder] Добавлен SlotMenuHandler на ${cell.name}`);
+            dlog(`[GameFieldSlotBinder] Добавлен SlotMenuHandler на ${cell.name}`);
         }
 
         if (root.getComponent(SlotMenuHandler)) {

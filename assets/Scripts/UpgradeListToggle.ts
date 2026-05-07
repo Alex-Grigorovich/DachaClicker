@@ -1,6 +1,5 @@
-import { _decorator, Button, Component, director, Node, tween, Tween, Vec3 } from 'cc';
+import { _decorator, Button, Component, director, Node, tween, Tween, Vec3, UITransform, view } from 'cc';
 import { ExclusiveUIPanelId, closeOtherExclusivePanels } from './ExclusiveUIPanels';
-import { AdaptiveScale } from './ResolutionAdapter';
 import { UpgradeListPanel } from './UpgradeListPanel';
 
 const { ccclass, property } = _decorator;
@@ -33,9 +32,6 @@ export class UpgradeListToggle extends Component {
     @property({ tooltip: 'Длительность закрытия (с)' })
     closeDuration: number = 0.18;
 
-    @property({ type: AdaptiveScale, tooltip: 'Явная ссылка на AdaptiveScale (пусто — ищем в сцене).' })
-    adaptiveScale: AdaptiveScale | null = null;
-
     /** Подписка на все cc.Button под ButtonsUpgrade, чтобы клик по детям (иконка) срабатывал. */
     private _triggerClickButtons: Button[] = [];
     private _closeBtn: Button | null = null;
@@ -48,8 +44,8 @@ export class UpgradeListToggle extends Component {
 
     onLoad() {
         this.resolveNodes();
-        if (!this.node.getComponent(UpgradeListPanel)) {
-            this.node.addComponent(UpgradeListPanel);
+        if (this.upgradeList?.isValid && !this.upgradeList.getComponent(UpgradeListPanel)) {
+            this.upgradeList.addComponent(UpgradeListPanel);
         }
     }
 
@@ -279,27 +275,15 @@ export class UpgradeListToggle extends Component {
         if (this._animating) {
             return;
         }
+        const endScale = this.fitPanelToScreenWidth(root);
         if (!this.useAnimation) {
             root.active = true;
-            const adapter =
-                this.adaptiveScale && this.adaptiveScale.node?.isValid
-                    ? this.adaptiveScale
-                    : director.getScene()?.getComponentInChildren(AdaptiveScale);
-            if (adapter) {
-                adapter.fitUpgradeList(true);
-            } else {
-                root.setScale(1, 1, 1);
-            }
+            root.setScale(endScale, endScale, 1);
             return;
         }
         this._animating = true;
         Tween.stopAllByTarget(root);
-        const adapter =
-            this.adaptiveScale && this.adaptiveScale.node?.isValid
-                ? this.adaptiveScale
-                : director.getScene()?.getComponentInChildren(AdaptiveScale);
-        const endS = adapter ? adapter.fitUpgradeList(false) : 1;
-        const endV = new Vec3(endS, endS, 1);
+        const endV = new Vec3(endScale, endScale, 1);
 
         root.active = true;
         root.setScale(0, 0, 0);
@@ -336,5 +320,34 @@ export class UpgradeListToggle extends Component {
                 this._animating = false;
             })
             .start();
+    }
+
+    private fitPanelToScreenWidth(panel: Node): number {
+        const ui = panel.getComponent(UITransform);
+        if (!ui) {
+            return 1;
+        }
+        const visible = view.getVisibleSize();
+        if (visible.width <= 0) {
+            return 1;
+        }
+        const parentScaleX = this.getCumulativeParentScaleX(panel);
+        const baseWidth = ui.contentSize.width * parentScaleX;
+        if (baseWidth <= 0) {
+            return 1;
+        }
+        const targetMaxWidth = visible.width * 0.9;
+        const fit = Math.min(1, targetMaxWidth / baseWidth);
+        return Math.max(0.35, fit);
+    }
+
+    private getCumulativeParentScaleX(node: Node): number {
+        let s = 1;
+        let p: Node | null = node.parent;
+        while (p) {
+            s *= Math.abs(p.scale.x);
+            p = p.parent;
+        }
+        return s;
     }
 }

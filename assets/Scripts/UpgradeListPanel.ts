@@ -1,6 +1,7 @@
-import { _decorator, Button, Color, Component, director, Label, Node, Sprite, tween, Tween, UITransform } from 'cc';
+import { _decorator, Button, Color, Component, director, Label, Node, Sprite, tween, Tween, UITransform, Vec3 } from 'cc';
 import { DEFAULT_BALANCE_RESOURCE_PATH } from './BalanceData';
 import { formatMoneyDisplay } from './formatMoneyDisplay';
+import { LocalizationManager } from './LocalizationManager';
 import { shakeAndFlashRed } from './UiMoneyDenyFeedback';
 import { UpgradeManager } from './UpgradeManager';
 import { VegClickMoney } from './VegClickMoney';
@@ -61,8 +62,12 @@ export class UpgradeListPanel extends Component {
     private _clickUntil = 0;
     private _rowsReady = false;
     private _costLabelByUpgradeId = new Map<string, Label>();
+    private _pulseByRowUuid = new Map<string, boolean>();
+    private _unbindLocale: (() => void) | null = null;
 
     onLoad() {
+        void LocalizationManager.init();
+        this._unbindLocale = LocalizationManager.onChange(() => this.refreshAllRows());
         this.ensureColList();
         this.cacheCostLabels();
     }
@@ -98,7 +103,13 @@ export class UpgradeListPanel extends Component {
     }
 
     onDestroy() {
+        for (const w of this._wired) {
+            Tween.stopAllByTarget(w.rowRoot);
+        }
         this.unwireHits();
+        this._pulseByRowUuid.clear();
+        this._unbindLocale?.();
+        this._unbindLocale = null;
     }
 
     /** Вызов после покупки или смены баланса снаружи (опционально). */
@@ -270,22 +281,23 @@ export class UpgradeListPanel extends Component {
 
         if (levelLabel) {
             if (reason === 'max_level') {
-                levelLabel.string = 'МАКС';
+                levelLabel.string = LocalizationManager.t('upgrade.max');
             } else {
-                levelLabel.string = `ур. ${level}`;
+                levelLabel.string = LocalizationManager.t('upgrade.level', { n: level });
             }
         }
 
         if (costLabel) {
             costLabel.string = this.getCostText(upgradeId, reason, nextCost);
         }
+        this.updateRowPulse(rowRoot, reason === 'ok');
     }
 
     private getCostText(upgradeId: string, reason?: ReturnType<typeof UpgradeManager.canPurchase>, nextCost?: number): string {
         const r = reason ?? UpgradeManager.canPurchase(upgradeId);
         const c = nextCost ?? UpgradeManager.getNextCost(upgradeId);
         if (r === 'max_level') {
-            return 'MAX';
+            return LocalizationManager.t('upgrade.max');
         }
         if (c <= 0) {
             return '—';
@@ -310,6 +322,7 @@ export class UpgradeListPanel extends Component {
     }
 
     private flashRowGreen(rowRoot: Node) {
+        this.updateRowPulse(rowRoot, false);
         const green = new Color(80, 220, 120, 255);
         const pairs: Array<{ target: Sprite | Label; original: Color }> = [];
         for (const s of rowRoot.getComponentsInChildren(Sprite)) {
@@ -331,6 +344,27 @@ export class UpgradeListPanel extends Component {
                     }
                 }
             })
+            .start();
+    }
+
+    private updateRowPulse(rowRoot: Node, enabled: boolean) {
+        const key = rowRoot.uuid;
+        const wasEnabled = this._pulseByRowUuid.get(key) === true;
+        if (enabled === wasEnabled) {
+            return;
+        }
+        this._pulseByRowUuid.set(key, enabled);
+        Tween.stopAllByTarget(rowRoot);
+        rowRoot.setScale(1, 1, 1);
+        if (!enabled) {
+            return;
+        }
+        tween(rowRoot)
+            .repeatForever(
+                tween()
+                    .to(0.22, { scale: new Vec3(1.04, 1.04, 1) }, { easing: 'sineOut' })
+                    .to(0.22, { scale: new Vec3(1, 1, 1) }, { easing: 'sineIn' }),
+            )
             .start();
     }
 

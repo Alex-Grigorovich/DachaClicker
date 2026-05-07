@@ -119,7 +119,9 @@
             "type": "money",
             "amount": 10
           }
-        ]
+        ],
+        "titleKey": "quest.quest_first_click.title",
+        "descKey": "quest.quest_first_click.desc"
       },
       {
         "id": "quest_earn_25",
@@ -139,7 +141,9 @@
             "type": "money",
             "amount": 25
           }
-        ]
+        ],
+        "titleKey": "quest.quest_earn_25.title",
+        "descKey": "quest.quest_earn_25.desc"
       },
       {
         "id": "quest_plant_first_crop",
@@ -159,7 +163,9 @@
             "type": "money",
             "amount": 30
           }
-        ]
+        ],
+        "titleKey": "quest.quest_plant_first_crop.title",
+        "descKey": "quest.quest_plant_first_crop.desc"
       },
       {
         "id": "quest_fill_2_slots",
@@ -179,7 +185,9 @@
             "type": "money",
             "amount": 50
           }
-        ]
+        ],
+        "titleKey": "quest.quest_fill_2_slots.title",
+        "descKey": "quest.quest_fill_2_slots.desc"
       },
       {
         "id": "quest_fill_3_start_slots",
@@ -199,7 +207,9 @@
             "type": "unlock_slot",
             "slot_index": 4
           }
-        ]
+        ],
+        "titleKey": "quest.quest_fill_3_start_slots.title",
+        "descKey": "quest.quest_fill_3_start_slots.desc"
       },
       {
         "id": "quest_earn_300",
@@ -219,7 +229,9 @@
             "type": "money",
             "amount": 75
           }
-        ]
+        ],
+        "titleKey": "quest.quest_earn_300.title",
+        "descKey": "quest.quest_earn_300.desc"
       },
       {
         "id": "quest_unlock_first_new_crop",
@@ -239,7 +251,9 @@
             "type": "money",
             "amount": 100
           }
-        ]
+        ],
+        "titleKey": "quest.quest_unlock_first_new_crop.title",
+        "descKey": "quest.quest_unlock_first_new_crop.desc"
       },
       {
         "id": "quest_fill_4_slots",
@@ -259,7 +273,9 @@
             "type": "unlock_slot",
             "slot_index": 5
           }
-        ]
+        ],
+        "titleKey": "quest.quest_fill_4_slots.title",
+        "descKey": "quest.quest_fill_4_slots.desc"
       },
       {
         "id": "quest_earn_1000",
@@ -279,7 +295,9 @@
             "type": "money",
             "amount": 200
           }
-        ]
+        ],
+        "titleKey": "quest.quest_earn_1000.title",
+        "descKey": "quest.quest_earn_1000.desc"
       },
       {
         "id": "quest_unlock_2_new_crops",
@@ -299,7 +317,9 @@
             "type": "money",
             "amount": 250
           }
-        ]
+        ],
+        "titleKey": "quest.quest_unlock_2_new_crops.title",
+        "descKey": "quest.quest_unlock_2_new_crops.desc"
       },
       {
         "id": "quest_fill_5_slots",
@@ -319,7 +339,9 @@
             "type": "unlock_slot",
             "slot_index": 6
           }
-        ]
+        ],
+        "titleKey": "quest.quest_fill_5_slots.title",
+        "descKey": "quest.quest_fill_5_slots.desc"
       },
       {
         "id": "quest_earn_2500",
@@ -339,7 +361,9 @@
             "type": "money",
             "amount": 400
           }
-        ]
+        ],
+        "titleKey": "quest.quest_earn_2500.title",
+        "descKey": "quest.quest_earn_2500.desc"
       },
       {
         "id": "quest_unlock_all_base_crops",
@@ -359,7 +383,9 @@
             "type": "money",
             "amount": 500
           }
-        ]
+        ],
+        "titleKey": "quest.quest_unlock_all_base_crops.title",
+        "descKey": "quest.quest_unlock_all_base_crops.desc"
       },
       {
         "id": "quest_fill_all_6_slots",
@@ -379,7 +405,9 @@
             "type": "money",
             "amount": 750
           }
-        ]
+        ],
+        "titleKey": "quest.quest_fill_all_6_slots.title",
+        "descKey": "quest.quest_fill_all_6_slots.desc"
       },
       {
         "id": "quest_earn_5000",
@@ -399,7 +427,9 @@
             "type": "money",
             "amount": 1000
           }
-        ]
+        ],
+        "titleKey": "quest.quest_earn_5000.title",
+        "descKey": "quest.quest_earn_5000.desc"
       },
       {
         "id": "quest_passive_first_gold",
@@ -419,7 +449,9 @@
             "type": "money",
             "amount": 80
           }
-        ]
+        ],
+        "titleKey": "quest.quest_passive_first_gold.title",
+        "descKey": "quest.quest_passive_first_gold.desc"
       },
       {
         "id": "quest_passive_steady",
@@ -439,7 +471,9 @@
             "type": "money",
             "amount": 200
           }
-        ]
+        ],
+        "titleKey": "quest.quest_passive_steady.title",
+        "descKey": "quest.quest_passive_steady.desc"
       },
       {
         "id": "quest_passive_big",
@@ -459,7 +493,9 @@
             "type": "money",
             "amount": 500
           }
-        ]
+        ],
+        "titleKey": "quest.quest_passive_big.title",
+        "descKey": "quest.quest_passive_big.desc"
       }
     ],
     "minimal_first_implementation": [
@@ -481,8 +517,20 @@
       "description": "Увеличивает доход за один клик по любой культуре.",
       "category": "global_click",
       "effectType": "add_click_income_flat",
-      "effectValues": [1, 1, 1, 1, 1],
-      "costs": [50, 150, 400, 900, 1800],
+      "effectValues": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "costs": [
+        50,
+        150,
+        400,
+        900,
+        1800
+      ],
       "maxLevel": 5
     },
     {
@@ -491,8 +539,16 @@
       "description": "Ещё один базовый апгрейд силы клика, но более дорогой.",
       "category": "global_click",
       "effectType": "add_click_income_flat",
-      "effectValues": [2, 2, 2],
-      "costs": [500, 1500, 4000],
+      "effectValues": [
+        2,
+        2,
+        2
+      ],
+      "costs": [
+        500,
+        1500,
+        4000
+      ],
       "maxLevel": 3
     },
     {
@@ -501,8 +557,18 @@
       "description": "Уменьшает локальный кулдаун у кликабельных культур.",
       "category": "global_click",
       "effectType": "cooldown_multiplier",
-      "effectValues": [0.95, 0.92, 0.9, 0.88],
-      "costs": [120, 350, 900, 2200],
+      "effectValues": [
+        0.95,
+        0.92,
+        0.9,
+        0.88
+      ],
+      "costs": [
+        120,
+        350,
+        900,
+        2200
+      ],
       "maxLevel": 4,
       "unlockCondition": {
         "type": "earned_money",
@@ -515,8 +581,16 @@
       "description": "Увеличивает доход только от carrot.",
       "category": "crop_specific",
       "effectType": "add_crop_click_income_flat",
-      "effectValues": [1, 2, 3],
-      "costs": [75, 200, 500],
+      "effectValues": [
+        1,
+        2,
+        3
+      ],
+      "costs": [
+        75,
+        200,
+        500
+      ],
       "maxLevel": 3,
       "unlockCondition": {
         "type": "culture_unlocked",
@@ -529,8 +603,16 @@
       "description": "Увеличивает доход только от cabbage.",
       "category": "crop_specific",
       "effectType": "add_crop_click_income_flat",
-      "effectValues": [2, 3, 5],
-      "costs": [250, 700, 1700],
+      "effectValues": [
+        2,
+        3,
+        5
+      ],
+      "costs": [
+        250,
+        700,
+        1700
+      ],
       "maxLevel": 3,
       "unlockCondition": {
         "type": "culture_unlocked",
@@ -543,8 +625,16 @@
       "description": "Увеличивает доход только от tomato.",
       "category": "crop_specific",
       "effectType": "add_crop_click_income_flat",
-      "effectValues": [4, 6, 9],
-      "costs": [800, 2200, 5000],
+      "effectValues": [
+        4,
+        6,
+        9
+      ],
+      "costs": [
+        800,
+        2200,
+        5000
+      ],
       "maxLevel": 3,
       "unlockCondition": {
         "type": "culture_unlocked",
@@ -557,8 +647,16 @@
       "description": "Увеличивает доход только от chili.",
       "category": "crop_specific",
       "effectType": "add_crop_click_income_flat",
-      "effectValues": [6, 10, 15],
-      "costs": [2500, 6000, 12000],
+      "effectValues": [
+        6,
+        10,
+        15
+      ],
+      "costs": [
+        2500,
+        6000,
+        12000
+      ],
       "maxLevel": 3,
       "unlockCondition": {
         "type": "culture_unlocked",
@@ -571,8 +669,16 @@
       "description": "Снижает цену открытия следующей культуры.",
       "category": "progression",
       "effectType": "culture_unlock_discount_percent",
-      "effectValues": [5, 8, 10],
-      "costs": [300, 1000, 2500],
+      "effectValues": [
+        5,
+        8,
+        10
+      ],
+      "costs": [
+        300,
+        1000,
+        2500
+      ],
       "maxLevel": 3
     },
     {
@@ -581,8 +687,14 @@
       "description": "Даёт разовый денежный бонус при первом заполнении нового слота.",
       "category": "progression",
       "effectType": "new_slot_fill_bonus",
-      "effectValues": [100, 250],
-      "costs": [500, 2500],
+      "effectValues": [
+        100,
+        250
+      ],
+      "costs": [
+        500,
+        2500
+      ],
       "maxLevel": 2
     },
     {
@@ -591,8 +703,14 @@
       "description": "Повышает награды за квесты деньгами.",
       "category": "progression",
       "effectType": "quest_money_bonus_percent",
-      "effectValues": [10, 20],
-      "costs": [700, 2500],
+      "effectValues": [
+        10,
+        20
+      ],
+      "costs": [
+        700,
+        2500
+      ],
       "maxLevel": 2
     },
     {
@@ -601,8 +719,16 @@
       "description": "Стартовый бонус денег при запуске новой сессии.",
       "category": "economy",
       "effectType": "session_start_money",
-      "effectValues": [25, 75, 150],
-      "costs": [200, 800, 2500],
+      "effectValues": [
+        25,
+        75,
+        150
+      ],
+      "costs": [
+        200,
+        800,
+        2500
+      ],
       "maxLevel": 3
     },
     {
@@ -611,8 +737,16 @@
       "description": "Шанс получить усиленный клик.",
       "category": "economy",
       "effectType": "double_click_chance_percent",
-      "effectValues": [5, 8, 10],
-      "costs": [1000, 3000, 7000],
+      "effectValues": [
+        5,
+        8,
+        10
+      ],
+      "costs": [
+        1000,
+        3000,
+        7000
+      ],
       "maxLevel": 3
     },
     {
@@ -621,8 +755,18 @@
       "description": "Общий процентный бонус ко всем кликам.",
       "category": "economy",
       "effectType": "global_click_bonus_percent",
-      "effectValues": [5, 10, 15, 20],
-      "costs": [600, 1800, 4500, 9000],
+      "effectValues": [
+        5,
+        10,
+        15,
+        20
+      ],
+      "costs": [
+        600,
+        1800,
+        4500,
+        9000
+      ],
       "maxLevel": 4
     },
     {
@@ -631,8 +775,12 @@
       "description": "Раз в несколько секунд культура приносит доход без клика.",
       "category": "future_system",
       "effectType": "auto_collect_unlock",
-      "effectValues": [1],
-      "costs": [3500],
+      "effectValues": [
+        1
+      ],
+      "costs": [
+        3500
+      ],
       "maxLevel": 1,
       "unlockCondition": {
         "type": "earned_money",
@@ -645,8 +793,16 @@
       "description": "Увеличивает пассивный доход всех посаженных культур.",
       "category": "future_system",
       "effectType": "passive_income_bonus_percent",
-      "effectValues": [15, 20, 25],
-      "costs": [2000, 5000, 12000],
+      "effectValues": [
+        15,
+        20,
+        25
+      ],
+      "costs": [
+        2000,
+        5000,
+        12000
+      ],
       "maxLevel": 3,
       "unlockCondition": {
         "type": "earned_money",
@@ -659,8 +815,16 @@
       "description": "Повышает результативность автосбора.",
       "category": "future_system",
       "effectType": "auto_collect_efficiency_percent",
-      "effectValues": [10, 15, 20],
-      "costs": [4500, 11000, 25000],
+      "effectValues": [
+        10,
+        15,
+        20
+      ],
+      "costs": [
+        4500,
+        11000,
+        25000
+      ],
       "maxLevel": 3,
       "unlockCondition": {
         "type": "culture_unlocked",
@@ -673,8 +837,12 @@
       "description": "Культура быстрее возвращается в активное состояние после клика.",
       "category": "future_system",
       "effectType": "extra_cooldown_multiplier",
-      "effectValues": [0.9],
-      "costs": [0],
+      "effectValues": [
+        0.9
+      ],
+      "costs": [
+        0
+      ],
       "maxLevel": 1
     },
     {
@@ -683,8 +851,12 @@
       "description": "Бонус за разные культуры на поле.",
       "category": "future_system",
       "effectType": "mixed_field_bonus_percent",
-      "effectValues": [10],
-      "costs": [0],
+      "effectValues": [
+        10
+      ],
+      "costs": [
+        0
+      ],
       "maxLevel": 1
     }
   ]

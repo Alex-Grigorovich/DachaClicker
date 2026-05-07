@@ -1,8 +1,8 @@
-import { _decorator, Component, Node, Button, tween, Vec3, director } from 'cc';
+import { _decorator, Color, Component, Node, Button, director, Graphics, tween, UIOpacity, UITransform, Vec3, view } from 'cc';
 import { ExclusiveUIPanelId, closeOtherExclusivePanels } from './ExclusiveUIPanels';
 import { VegetableMenuHandler } from './VegetableMenuHandler';
 import { VegClickMoney } from './VegClickMoney';
-import { AdaptiveScale } from './ResolutionAdapter';
+import { dlog } from './Debug';
 
 const { ccclass, property } = _decorator;
 @ccclass('SlotMenuHandler')
@@ -42,6 +42,7 @@ export class SlotMenuHandler extends Component {
         if (clicker?.tryHarvestFromCellButton()) {
             return;
         }
+        this.playClickRipple();
 
         closeOtherExclusivePanels(ExclusiveUIPanelId.VegetableList);
         const menuHandler = this.resolveMenuHandler();
@@ -52,37 +53,32 @@ export class SlotMenuHandler extends Component {
         this.menuPanel = menuHandler.node;
         menuHandler.setTargetCell(this.node);
 
-        const adapter = director.getScene()?.getComponentInChildren(AdaptiveScale);
-        const endScale = adapter ? adapter.fitVegetableList(false) : 1;
+        const endScale = this.fitPanelToScreenWidth(this.menuPanel);
         const endV = new Vec3(endScale, endScale, 1);
 
         /* Уже открыто — меняем только целевой слот и подгоняем масштаб (повторный клик по другому Cell или после странных состояний). */
         if (this.menuPanel.active) {
-            if (adapter) {
-                adapter.fitVegetableList(true);
-            }
+            this.menuPanel.setScale(endScale, endScale, 1);
             this._isOpen = true;
-            console.log(`[SlotMenuHandler] Цель слота обновлена: ${this.node.name}`);
+            dlog(`[SlotMenuHandler] Цель слота обновлена: ${this.node.name}`);
             return;
         }
 
         this._isOpen = true;
         this.menuPanel.active = true;
-        console.log(`[SlotMenuHandler] 🚀 Открыто меню для: ${this.node.name}`);
+        dlog(`[SlotMenuHandler] 🚀 Открыто меню для: ${this.node.name}`);
         if (this.useAnimation) {
             this.menuPanel.scale = new Vec3(0, 0, 0);
             tween(this.menuPanel).to(0.25, { scale: endV }, { easing: 'backOut' }).start();
-        } else if (adapter) {
-            adapter.fitVegetableList(true);
         } else {
-            this.menuPanel.setScale(1, 1, 1);
+            this.menuPanel.setScale(endScale, endScale, 1);
         }
     };
 
     public closeMenu = () => {
         if (!this._isOpen || !this.menuPanel) return;
         this._isOpen = false;
-        console.log('[SlotMenuHandler] 🔒 Закрываем VegetableList');
+        dlog('[SlotMenuHandler] 🔒 Закрываем VegetableList');
         if (this.useAnimation) {
             tween(this.menuPanel)
                 .to(0.18, { scale: new Vec3(0, 0, 0) }, { easing: 'quadIn' })
@@ -123,7 +119,7 @@ export class SlotMenuHandler extends Component {
                 const byNameHandler = byName.getComponent(VegetableMenuHandler);
                 if (byNameHandler && isPlacementCandidate(byNameHandler)) {
                     this.menuPanel = byNameHandler.node;
-                    console.log(`[SlotMenuHandler] ✅ ${requestedMenuName} найден по имени`);
+                    dlog(`[SlotMenuHandler] ✅ ${requestedMenuName} найден по имени`);
                     return byNameHandler;
                 }
                 if (byNameHandler && !isPlacementCandidate(byNameHandler)) {
@@ -157,7 +153,7 @@ export class SlotMenuHandler extends Component {
             return null;
         }
         this.menuPanel = found.node;
-        console.log(`[SlotMenuHandler] ✅ ${found.node.name} найден через VegetableMenuHandler`);
+        dlog(`[SlotMenuHandler] ✅ ${found.node.name} найден через VegetableMenuHandler`);
         return found;
     }
 
@@ -183,7 +179,70 @@ export class SlotMenuHandler extends Component {
         return raw || 'VegetableList';
     }
 
+    private fitPanelToScreenWidth(panel: Node): number {
+        const ui = panel.getComponent(UITransform);
+        if (!ui) {
+            return 1;
+        }
+        const visible = view.getVisibleSize();
+        if (visible.width <= 0) {
+            return 1;
+        }
+        const parentScaleX = this.getCumulativeParentScaleX(panel);
+        const baseWidth = ui.contentSize.width * parentScaleX;
+        if (baseWidth <= 0) {
+            return 1;
+        }
+        const targetMaxWidth = visible.width * 0.9;
+        const fit = Math.min(1, targetMaxWidth / baseWidth);
+        return Math.max(0.35, fit);
+    }
+
+    private getCumulativeParentScaleX(node: Node): number {
+        let s = 1;
+        let p: Node | null = node.parent;
+        while (p) {
+            s *= Math.abs(p.scale.x);
+            p = p.parent;
+        }
+        return s;
+    }
+
     onDestroy() {
         this.node.off(Button.EventType.CLICK, this.openMenu, this);
+    }
+
+    private playClickRipple() {
+        const ui = this.node.getComponent(UITransform);
+        if (!ui) {
+            return;
+        }
+        const ripple = new Node('SlotRipple');
+        ripple.layer = this.node.layer;
+        this.node.addChild(ripple);
+        ripple.setSiblingIndex(this.node.children.length - 1);
+        ripple.setPosition(0, 0, 0);
+
+        const rUi = ripple.addComponent(UITransform);
+        const size = Math.max(20, Math.min(ui.contentSize.width, ui.contentSize.height) * 0.45);
+        rUi.setContentSize(size, size);
+        const op = ripple.addComponent(UIOpacity);
+        op.opacity = 220;
+        const g = ripple.addComponent(Graphics);
+        g.fillColor = new Color(255, 255, 255, 80);
+        g.circle(0, 0, size * 0.5);
+        g.fill();
+
+        tween(ripple)
+            .parallel(
+                tween(ripple).to(0.3, { scale: new Vec3(2, 2, 1) }, { easing: 'quadOut' }),
+                tween(op).to(0.3, { opacity: 0 }, { easing: 'quadIn' }),
+            )
+            .call(() => {
+                if (ripple.isValid) {
+                    ripple.destroy();
+                }
+            })
+            .start();
     }
 }

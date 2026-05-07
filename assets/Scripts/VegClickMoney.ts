@@ -1,10 +1,14 @@
-import { _decorator, Component, director, Node, ProgressBar, Size, Sprite, Tween, tween, UITransform, Vec3, Vec2, Label } from 'cc';
+import { _decorator, Color, Component, director, Node, ProgressBar, Size, Sprite, Tween, tween, UITransform, Vec2, Vec3, Label } from 'cc';
 import { BalanceCultureKey, DEFAULT_BALANCE_RESOURCE_PATH } from './BalanceData';
 import { MoneyManager } from './MoneyManager';
 import { PlantFieldState } from './PlantFieldState';
 import { formatMoneyDisplay } from './formatMoneyDisplay';
 import { notifyQuestClick } from './QuestBridge';
 import { UpgradeManager } from './UpgradeManager';
+import { notifyCarrotHarvested } from './TutorialBridge';
+import { FloatingText } from './FloatingText';
+import { FxPool } from './FxPool';
+import { dlog } from './Debug';
 
 const { ccclass, property } = _decorator;
 
@@ -64,6 +68,12 @@ export class VegClickMoney extends Component {
     @property({ tooltip: 'База дохода клика без апгрейдов (задаётся балансом культуры)' })
     baseAddPerClick: number = 1;
 
+    @property({ tooltip: 'Скалировать культуру при появлении: от 0.8 до 1.0' })
+    spawnScaleFrom = 0.8;
+
+    @property({ tooltip: 'Длительность анимации появления культуры (сек)' })
+    spawnScaleDuration = 0.2;
+
     private _basePositions = new WeakMap<Node, Vec3>();
     private _cooldownActive: boolean = false;
     private _currentCooldownTween: Tween<any> | null = null;
@@ -72,6 +82,7 @@ export class VegClickMoney extends Component {
     /** Тот же кадр/платформа может дать TOUCH_END и MOUSE_UP — не считаем дважды (как в VegetableMenuHandler). */
     private _lastVegPointerNode: Node | null = null;
     private _lastVegPointerAt = 0;
+    private _animatedSpawnNodeUuids = new Set<string>();
 
     onLoad() {
         UpgradeManager.initialize(DEFAULT_BALANCE_RESOURCE_PATH);
@@ -91,7 +102,7 @@ export class VegClickMoney extends Component {
         // 2. Настройка кликов
         let root = this.searchRoot || this.node;
         const vegNodes = this.findAllNodesByName(root, 'VegClick');
-        console.log(`[VegClickMoney] Найдено VegClick нод: ${vegNodes.length}`);
+        dlog(`[VegClickMoney] Найдено VegClick нод: ${vegNodes.length}`);
 
         for (const veg of vegNodes) {
             veg.off(Node.EventType.TOUCH_END, this.onVegClick, this);
@@ -99,6 +110,7 @@ export class VegClickMoney extends Component {
             veg.on(Node.EventType.TOUCH_END, this.onVegClick, this);
             veg.on(Node.EventType.MOUSE_UP, this.onVegClick, this);
             this.cacheVegBasePositions(veg);
+            this.playSpawnGrowAndIdle(veg);
         }
 
         /** Клики по дочерним IconCoin / moneyCount не попадают в обработчик VegClick, но всплывают к Button слота — открывая меню. */
@@ -124,7 +136,7 @@ export class VegClickMoney extends Component {
         if (!MoneyManager.getInstance()) {
             console.error('[VegClickMoney] ❌ MoneyManager не найден в сцене!');
         } else {
-            console.log('[VegClickMoney] ✅ MoneyManager подключён через singleton');
+            dlog('[VegClickMoney] ✅ MoneyManager подключён через singleton');
         }
     }
 
@@ -157,7 +169,7 @@ export class VegClickMoney extends Component {
         }
 
         if (this._cooldownActive) {
-            console.log('[VegClickMoney] ⏳ Кулдаун активен');
+            dlog('[VegClickMoney] ⏳ Кулдаун активен');
             return;
         }
 
@@ -179,7 +191,7 @@ export class VegClickMoney extends Component {
         this._lastVegPointerNode = vegNode;
         this._lastVegPointerAt = now;
 
-        console.log(`[VegClickMoney] 🖱️ Клик по ${leaf.name} (агрегатор VegClick: ${vegNode.name})`);
+        dlog(`[VegClickMoney] 🖱️ Клик по ${leaf.name} (агрегатор VegClick: ${vegNode.name})`);
 
         this.applyHarvestEffects(vegNode);
     };
@@ -207,7 +219,7 @@ export class VegClickMoney extends Component {
         this._lastVegPointerNode = vegNode;
         this._lastVegPointerAt = now;
 
-        console.log(`[VegClickMoney] 🖱️ Клик по ячейке → урожай (${vegNode.name})`);
+        dlog(`[VegClickMoney] 🖱️ Клик по ячейке → урожай (${vegNode.name})`);
 
         this.applyHarvestEffects(vegNode);
         return true;
@@ -220,10 +232,17 @@ export class VegClickMoney extends Component {
         const manager = this.moneyManager;
         if (manager) {
             const culture = this.resolveCultureKey();
-            const reward = Math.max(0, Math.floor(UpgradeManager.getClickReward(this.baseAddPerClick, culture) || 0));
+            const rawReward = Math.max(0, Math.floor(UpgradeManager.getClickReward(this.baseAddPerClick, culture) || 0));
+            const reward = manager.applyHarvestMultiplier(rawReward);
             this.addPerClick = reward;
             this.syncMoneyCountLabel();
             manager.addMoney(reward);
+            const worldPos = this.resolveHarvestWorldPos(vegNode);
+            FloatingText.spawn(this.resolveUiParentForFx(), worldPos, `+${reward}`, new Color(124, 252, 0, 255));
+            FxPool.spawnHarvestSpark(this.resolveUiParentForFx(), worldPos, new Color(255, 217, 61, 255), 8);
+            if (culture === 'carrot') {
+                notifyCarrotHarvested();
+            }
         } else {
             console.error('[VegClickMoney] ❌ MoneyManager.instance недоступен!');
         }
@@ -408,6 +427,78 @@ export class VegClickMoney extends Component {
         }
     }
 
+    private playSpawnGrowAndIdle(vegNode: Node) {
+        if (!vegNode?.isValid || this._animatedSpawnNodeUuids.has(vegNode.uuid)) {
+            return;
+        }
+        this._animatedSpawnNodeUuids.add(vegNode.uuid);
+        Tween.stopAllByTarget(vegNode);
+        const baseScale = vegNode.scale.clone();
+        const from = Math.max(0.1, this.spawnScaleFrom);
+        vegNode.setScale(baseScale.x * from, baseScale.y * from, baseScale.z);
+        tween(vegNode)
+            .to(Math.max(0.05, this.spawnScaleDuration), { scale: baseScale }, { easing: 'backOut' })
+            .call(() => this.startIdleSwayIfCarrot(vegNode))
+            .start();
+    }
+
+    private startIdleSwayIfCarrot(vegNode: Node) {
+        if (!vegNode?.isValid || !this.isCarrotVisual(vegNode)) {
+            return;
+        }
+        const current = vegNode.eulerAngles.clone();
+        vegNode.setRotationFromEuler(current.x, current.y, 0);
+        tween(vegNode)
+            .repeatForever(
+                tween()
+                    .by(0.3, { eulerAngles: new Vec3(0, 0, 3) })
+                    .by(0.6, { eulerAngles: new Vec3(0, 0, -6) })
+                    .by(0.3, { eulerAngles: new Vec3(0, 0, 3) }),
+            )
+            .start();
+    }
+
+    private isCarrotVisual(vegNode: Node): boolean {
+        const scan: Node[] = [vegNode];
+        while (scan.length) {
+            const n = scan.pop()!;
+            if (/carrot/i.test(n.name)) {
+                return true;
+            }
+            scan.push(...n.children);
+        }
+        return false;
+    }
+
+    private resolveHarvestWorldPos(vegNode: Node): Vec3 {
+        const spriteNode = this.findFirstNodeWithSprite(vegNode) ?? vegNode;
+        const tr = spriteNode.getComponent(UITransform);
+        if (!tr) {
+            return spriteNode.worldPosition.clone();
+        }
+        const box = tr.getBoundingBoxToWorld();
+        return new Vec3(box.x + box.width * 0.5, box.y + box.height * 0.7, spriteNode.worldPosition.z);
+    }
+
+    private resolveUiParentForFx(): Node {
+        return this._canvasNode?.isValid ? this._canvasNode : (director.getScene() ?? this.node);
+    }
+
+    private findFirstNodeWithSprite(root: Node | null): Node | null {
+        if (!root?.isValid) {
+            return null;
+        }
+        const scan: Node[] = [root];
+        while (scan.length) {
+            const n = scan.shift()!;
+            if (n.getComponent(Sprite)) {
+                return n;
+            }
+            scan.push(...n.children);
+        }
+        return null;
+    }
+
     private getBasePos(node: Node): Vec3 {
         let pos = this._basePositions.get(node);
         if (!pos) {
@@ -522,6 +613,6 @@ export class VegClickMoney extends Component {
         const v = Math.max(0, Math.floor(UpgradeManager.getClickRewardPreview(this.baseAddPerClick, culture) || 0));
         this.addPerClick = v;
         label.string = formatMoneyDisplay(v);
-        console.log(`[VegClickMoney] 💰 Установлена цена: ${v}`);
+        dlog(`[VegClickMoney] 💰 Установлена цена: ${v}`);
     }
 }

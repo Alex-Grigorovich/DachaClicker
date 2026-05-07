@@ -1,6 +1,5 @@
-import { _decorator, Button, Component, Node, Tween, tween, Vec3, director } from 'cc';
+import { _decorator, Button, Component, Node, Tween, tween, Vec3, director, UITransform, view } from 'cc';
 import { ExclusiveUIPanelId, closeOtherExclusivePanels } from './ExclusiveUIPanels';
-import { AdaptiveScale } from './ResolutionAdapter';
 import { VegetableMenuHandler } from './VegetableMenuHandler';
 
 const { ccclass, property } = _decorator;
@@ -271,15 +270,10 @@ export class VegetableUnlockListToggle extends Component {
         if (!panel.active) {
             this._animating = false;
         }
-        const adapter = director.getScene()?.getComponentInChildren(AdaptiveScale);
-
+        const endScale = this.fitPanelToScreenWidth(panel);
         if (!this.useAnimation) {
             panel.active = true;
-            if (adapter) {
-                adapter.fitVegetableListUnlocked(true);
-            } else {
-                panel.setScale(1, 1, 1);
-            }
+            panel.setScale(endScale, endScale, 1);
             this.afterUnlockPanelOpen();
             return;
         }
@@ -288,7 +282,6 @@ export class VegetableUnlockListToggle extends Component {
         Tween.stopAllByTarget(panel);
         panel.active = true;
         panel.setScale(0, 0, 0);
-        const endScale = adapter ? adapter.fitVegetableListUnlocked(false) : 1;
         const endV = new Vec3(endScale, endScale, 1);
 
         tween(panel)
@@ -339,5 +332,34 @@ export class VegetableUnlockListToggle extends Component {
                 this._animating = false;
             })
             .start();
+    }
+
+    private fitPanelToScreenWidth(panel: Node): number {
+        const ui = panel.getComponent(UITransform);
+        if (!ui) {
+            return 1;
+        }
+        const visible = view.getVisibleSize();
+        if (visible.width <= 0) {
+            return 1;
+        }
+        const parentScaleX = this.getCumulativeParentScaleX(panel);
+        const baseWidth = ui.contentSize.width * parentScaleX;
+        if (baseWidth <= 0) {
+            return 1;
+        }
+        const targetMaxWidth = visible.width * 0.9;
+        const fit = Math.min(1, targetMaxWidth / baseWidth);
+        return Math.max(0.35, fit);
+    }
+
+    private getCumulativeParentScaleX(node: Node): number {
+        let s = 1;
+        let p: Node | null = node.parent;
+        while (p) {
+            s *= Math.abs(p.scale.x);
+            p = p.parent;
+        }
+        return s;
     }
 }

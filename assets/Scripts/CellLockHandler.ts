@@ -3,6 +3,7 @@ import { MoneyManager } from './MoneyManager';
 import { notifyQuestProgress } from './QuestBridge';
 import { notifyProgressChanged } from './ProgressBridge';
 import { flashNamedNodesRed, shakeNodeHorizontal } from './UiMoneyDenyFeedback';
+import { dlog } from './Debug';
 
 const { ccclass, property } = _decorator;
 
@@ -115,15 +116,15 @@ export class CellLockHandler extends Component {
 
         if (currentMoney >= cost) {
             if (cost > 0 && !mm.subtractMoney(cost)) {
-                console.log(`[CellLockHandler] Не удалось списать ${cost}`);
+                dlog(`[CellLockHandler] Не удалось списать ${cost}`);
                 return;
             }
-            console.log(`[CellLockHandler] ✅ Разблокировано! (Цена: ${cost}, Баланс был: ${currentMoney})`);
+            dlog(`[CellLockHandler] ✅ Разблокировано! (Цена: ${cost}, Баланс был: ${currentMoney})`);
             this.applyLockState(false);
             notifyQuestProgress();
             notifyProgressChanged();
         } else {
-            console.log(`[CellLockHandler]  Недостаточно средств! Нужно: ${cost}, Есть: ${currentMoney}`);
+            dlog(`[CellLockHandler]  Недостаточно средств! Нужно: ${cost}, Есть: ${currentMoney}`);
         }
     }
 

@@ -1,7 +1,8 @@
-import { _decorator, Component, Label } from 'cc';
+import { _decorator, Component, Label, tween, Tween } from 'cc';
 import { formatMoneyDisplay, formatPassiveIncomePerSecond } from './formatMoneyDisplay';
 import { notifyProgressChanged } from './ProgressBridge';
 import { PassiveIncomeManager } from './PassiveIncomeManager';
+import { dlog } from './Debug';
 
 
 
@@ -29,6 +30,9 @@ export class MoneyManager extends Component {
 
     startingBalance = 0;
 
+    @property({ tooltip: 'Длительность rewarded-бафа x2 по умолчанию (сек)' })
+    defaultDoubleHarvestDurationSec = 120;
+
 
 
     /** Единственный источник правды: целое число, не строка UI. */
@@ -38,6 +42,10 @@ export class MoneyManager extends Component {
     /** Сумма всех положительных начислений (для квестов total_earned). */
 
     private _totalEarned = 0;
+    private _displayBalance = 0;
+    private _labelTweenState = { value: 0 };
+    private _labelTween: Tween<{ value: number }> | null = null;
+    private _doubleHarvestUntil = 0;
 
 
 
@@ -90,7 +98,7 @@ export class MoneyManager extends Component {
         this.bindPassiveIncomeLabelIfNeeded();
         this.syncPassiveIncomeLabel();
 
-        console.log(`[MoneyManager] ✅ Singleton initialized | Баланс: ${this._balance}`);
+        dlog(`[MoneyManager] ✅ Singleton initialized | Баланс: ${this._balance}`);
 
     }
 
@@ -117,6 +125,8 @@ export class MoneyManager extends Component {
         const v = Math.max(0, Math.floor(this.startingBalance));
 
         this._balance = v;
+        this._displayBalance = v;
+        this._labelTweenState.value = v;
 
         this.syncLabel();
 
@@ -128,7 +138,7 @@ export class MoneyManager extends Component {
 
         }
 
-        console.log(`[MoneyManager] 💰 Начальный баланс: ${this._balance}`);
+        dlog(`[MoneyManager] 💰 Начальный баланс: ${this._balance}`);
 
     }
 
@@ -159,7 +169,7 @@ export class MoneyManager extends Component {
 
         this.syncLabel();
 
-        console.log(`[MoneyManager] 💰 Баланс установлен: ${this._balance}`);
+        dlog(`[MoneyManager] 💰 Баланс установлен: ${this._balance}`);
         notifyProgressChanged();
 
     }
@@ -170,10 +180,12 @@ export class MoneyManager extends Component {
         this._balance = Math.max(0, Math.floor(Number(balance) || 0));
 
         this._totalEarned = Math.max(0, Math.floor(Number(totalEarned) || 0));
+        this._displayBalance = this._balance;
+        this._labelTweenState.value = this._balance;
 
         this.syncLabel();
 
-        console.log(`[MoneyManager] 💾 Баланс восстановлен: ${this._balance}, всего заработано: ${this._totalEarned}`);
+        dlog(`[MoneyManager] 💾 Баланс восстановлен: ${this._balance}, всего заработано: ${this._totalEarned}`);
 
     }
 
@@ -191,6 +203,23 @@ export class MoneyManager extends Component {
 
         return this._totalEarned;
 
+    }
+
+    public activateDoubleHarvest(durationSec = this.defaultDoubleHarvestDurationSec): void {
+        const durationMs = Math.max(0, Math.floor(durationSec * 1000));
+        this._doubleHarvestUntil = Math.max(this._doubleHarvestUntil, Date.now() + durationMs);
+    }
+
+    public hasDoubleHarvestActive(now = Date.now()): boolean {
+        return now < this._doubleHarvestUntil;
+    }
+
+    public applyHarvestMultiplier(baseReward: number): number {
+        const value = Math.max(0, Math.floor(baseReward));
+        if (!this.hasDoubleHarvestActive()) {
+            return value;
+        }
+        return value * 2;
     }
 
 
@@ -211,7 +240,7 @@ export class MoneyManager extends Component {
 
         this.syncLabel();
 
-        console.log(`[MoneyManager] 💰 -${cost} | Новый баланс: ${this._balance}`);
+        dlog(`[MoneyManager] 💰 -${cost} | Новый баланс: ${this._balance}`);
         notifyProgressChanged();
 
         return true;
@@ -234,7 +263,7 @@ export class MoneyManager extends Component {
 
         this.syncLabel();
 
-        console.log(`[MoneyManager] 💰 +${delta} | Новый баланс: ${this._balance}`);
+        dlog(`[MoneyManager] 💰 +${delta} | Новый баланс: ${this._balance}`);
         notifyProgressChanged();
 
     }
@@ -249,9 +278,45 @@ export class MoneyManager extends Component {
 
         }
 
-        this.moneyLabel.string = formatMoneyDisplay(this._balance);
+        this.animateMoneyLabelTo(this._balance);
         this.syncPassiveIncomeLabel();
 
+    }
+
+    private animateMoneyLabelTo(targetBalance: number) {
+        if (!this.moneyLabel?.isValid) {
+            return;
+        }
+        const target = Math.max(0, Math.floor(targetBalance));
+        if (this._labelTween) {
+            this._labelTween.stop();
+            this._labelTween = null;
+        }
+        const from = Math.max(0, Math.floor(this._displayBalance));
+        if (from === target) {
+            this.moneyLabel.string = formatMoneyDisplay(target);
+            return;
+        }
+        this._labelTweenState.value = from;
+        this._labelTween = tween(this._labelTweenState)
+            .to(0.2, { value: target }, {
+                easing: 'quadOut',
+                onUpdate: (state) => {
+                    const v = Math.max(0, Math.floor(state.value));
+                    this._displayBalance = v;
+                    if (this.moneyLabel?.isValid) {
+                        this.moneyLabel.string = formatMoneyDisplay(v);
+                    }
+                },
+            })
+            .call(() => {
+                this._displayBalance = target;
+                if (this.moneyLabel?.isValid) {
+                    this.moneyLabel.string = formatMoneyDisplay(target);
+                }
+                this._labelTween = null;
+            })
+            .start();
     }
 
     private syncPassiveIncomeLabel() {

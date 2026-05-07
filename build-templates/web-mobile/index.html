@@ -1,0 +1,49 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+
+  <title>Дача кликер — Играй бесплатно на Яндекс Играх</title>
+
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+  <meta property="og:title" content="Дача кликер — Играй бесплатно на Яндекс Играх">
+  <meta property="og:description" content="Сажай морковь, собирай урожай и развивай свою ферму!">
+  <meta property="og:image" content="icons/icon-512.png">
+  <meta property="og:type" content="game">
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="renderer" content="webkit"/>
+  <meta name="force-rendering" content="webkit"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
+  <meta name="msapplication-tap-highlight" content="no">
+  <meta name="full-screen" content="yes"/>
+  <meta name="x5-fullscreen" content="true"/>
+  <meta name="360-fullscreen" content="true"/>
+  <meta name="x5-page-mode" content="app">
+
+  <link rel="stylesheet" type="text/css" href="style.css"/>
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon-180.png">
+
+  <!-- Yandex Games SDK -->
+  <script src="https://yandex.ru/games/sdk/v2"></script>
+</head>
+<body>
+  <div id="GameDiv" cc_exact_fit_screen="true">
+      <div id="Cocos3dGameContainer">
+        <canvas id="GameCanvas" oncontextmenu="event.preventDefault()" tabindex="99"></canvas>
+      </div>
+    </div>
+
+  <script src="src/polyfills.bundle.js" charset="utf-8"> </script>
+  <script src="src/system.bundle.js" charset="utf-8"> </script>
+  <script src="src/import-map.json" type="systemjs-importmap" charset="utf-8"> </script>
+
+  <script>
+      System.import('./index.js').catch(function(err) { console.error(err); });
+  </script>
+</body>
+</html>

@@ -34,6 +34,8 @@ export interface BalanceQuestDef {
     group?: string;
     title: string;
     description: string;
+    titleKey?: string;
+    descKey?: string;
     conditions: BalanceQuestCondition[];
     rewards: BalanceQuestReward[];
 }

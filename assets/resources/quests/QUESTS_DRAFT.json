@@ -32,7 +32,9 @@
           "type": "money",
           "amount": 10
         }
-      ]
+      ],
+      "titleKey": "quest.quest_first_click.title",
+      "descKey": "quest.quest_first_click.desc"
     },
     {
       "id": "quest_earn_25",
@@ -52,7 +54,9 @@
           "type": "money",
           "amount": 25
         }
-      ]
+      ],
+      "titleKey": "quest.quest_earn_25.title",
+      "descKey": "quest.quest_earn_25.desc"
     },
     {
       "id": "quest_plant_first_crop",
@@ -72,7 +76,9 @@
           "type": "money",
           "amount": 30
         }
-      ]
+      ],
+      "titleKey": "quest.quest_plant_first_crop.title",
+      "descKey": "quest.quest_plant_first_crop.desc"
     },
     {
       "id": "quest_fill_2_slots",
@@ -92,7 +98,9 @@
           "type": "money",
           "amount": 50
         }
-      ]
+      ],
+      "titleKey": "quest.quest_fill_2_slots.title",
+      "descKey": "quest.quest_fill_2_slots.desc"
     },
     {
       "id": "quest_fill_3_start_slots",
@@ -112,7 +120,9 @@
           "type": "unlock_slot",
           "slot_index": 4
         }
-      ]
+      ],
+      "titleKey": "quest.quest_fill_3_start_slots.title",
+      "descKey": "quest.quest_fill_3_start_slots.desc"
     },
     {
       "id": "quest_earn_300",
@@ -132,7 +142,9 @@
           "type": "money",
           "amount": 75
         }
-      ]
+      ],
+      "titleKey": "quest.quest_earn_300.title",
+      "descKey": "quest.quest_earn_300.desc"
     },
     {
       "id": "quest_unlock_first_new_crop",
@@ -152,7 +164,9 @@
           "type": "money",
           "amount": 100
         }
-      ]
+      ],
+      "titleKey": "quest.quest_unlock_first_new_crop.title",
+      "descKey": "quest.quest_unlock_first_new_crop.desc"
     },
     {
       "id": "quest_fill_4_slots",
@@ -172,7 +186,9 @@
           "type": "unlock_slot",
           "slot_index": 5
         }
-      ]
+      ],
+      "titleKey": "quest.quest_fill_4_slots.title",
+      "descKey": "quest.quest_fill_4_slots.desc"
     },
     {
       "id": "quest_earn_1000",
@@ -192,7 +208,9 @@
           "type": "money",
           "amount": 200
         }
-      ]
+      ],
+      "titleKey": "quest.quest_earn_1000.title",
+      "descKey": "quest.quest_earn_1000.desc"
     },
     {
       "id": "quest_unlock_2_new_crops",
@@ -212,7 +230,9 @@
           "type": "money",
           "amount": 250
         }
-      ]
+      ],
+      "titleKey": "quest.quest_unlock_2_new_crops.title",
+      "descKey": "quest.quest_unlock_2_new_crops.desc"
     },
     {
       "id": "quest_fill_5_slots",
@@ -232,7 +252,9 @@
           "type": "unlock_slot",
           "slot_index": 6
         }
-      ]
+      ],
+      "titleKey": "quest.quest_fill_5_slots.title",
+      "descKey": "quest.quest_fill_5_slots.desc"
     },
     {
       "id": "quest_earn_2500",
@@ -252,7 +274,9 @@
           "type": "money",
           "amount": 400
         }
-      ]
+      ],
+      "titleKey": "quest.quest_earn_2500.title",
+      "descKey": "quest.quest_earn_2500.desc"
     },
     {
       "id": "quest_unlock_all_base_crops",
@@ -272,7 +296,9 @@
           "type": "money",
           "amount": 500
         }
-      ]
+      ],
+      "titleKey": "quest.quest_unlock_all_base_crops.title",
+      "descKey": "quest.quest_unlock_all_base_crops.desc"
     },
     {
       "id": "quest_fill_all_6_slots",
@@ -292,7 +318,9 @@
           "type": "money",
           "amount": 750
         }
-      ]
+      ],
+      "titleKey": "quest.quest_fill_all_6_slots.title",
+      "descKey": "quest.quest_fill_all_6_slots.desc"
     },
     {
       "id": "quest_earn_5000",
@@ -312,7 +340,9 @@
           "type": "money",
           "amount": 1000
         }
-      ]
+      ],
+      "titleKey": "quest.quest_earn_5000.title",
+      "descKey": "quest.quest_earn_5000.desc"
     }
   ],
   "minimal_first_implementation": [

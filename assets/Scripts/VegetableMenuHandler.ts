@@ -2,6 +2,7 @@ import { _decorator, Component, Node, Button, Prefab, instantiate, Label, direct
 import { MoneyManager } from './MoneyManager';
 import { SlotMenuHandler } from './SlotMenuHandler';
 import { PlantFieldState } from './PlantFieldState';
+import { dlog } from './Debug';
 import {
     BalanceCultureDef,
     BalanceCultureKey,
@@ -16,6 +17,7 @@ import { readProgressSave, SavedFieldCellState } from './ProgressSave';
 import { UnlockManager } from './UnlockManager';
 import { UpgradeManager } from './UpgradeManager';
 import { shakeAndFlashRed } from './UiMoneyDenyFeedback';
+import { notifyCarrotPlanted } from './TutorialBridge';
 
 const { ccclass, property } = _decorator;
 
@@ -354,7 +356,7 @@ export class VegetableMenuHandler extends Component {
         this.syncAllVegetableMenusUnlockUi();
         notifyQuestProgress();
         notifyProgressChanged();
-        console.log(`[VegetableMenuHandler] ${item.key} разблокирован за ${cost}`);
+        dlog(`[VegetableMenuHandler] ${item.key} разблокирован за ${cost}`);
     }
 
     private syncAllVegetableMenusUnlockUi() {
@@ -449,7 +451,10 @@ export class VegetableMenuHandler extends Component {
         newItem.setPosition(0, 0, 0);
 
         PlantFieldState.getInstance().setCellCulture(this.targetCell, cultureKey);
-        console.log(`[VegetableMenuHandler] В слот ${this.targetCell.name} помещён: ${prefab.name} (${cultureKey})`);
+        if (cultureKey === 'carrot') {
+            notifyCarrotPlanted();
+        }
+        dlog(`[VegetableMenuHandler] В слот ${this.targetCell.name} помещён: ${prefab.name} (${cultureKey})`);
         notifyQuestProgress();
         notifyProgressChanged();
     }
@@ -597,7 +602,7 @@ export class VegetableMenuHandler extends Component {
                 }
             }
         }
-        console.log('[VegetableMenuHandler] Меню закрыто');
+        dlog('[VegetableMenuHandler] Меню закрыто');
     }
 
     onDestroy() {

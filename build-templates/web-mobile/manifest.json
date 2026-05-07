@@ -1,0 +1,12 @@
+{
+  "name": "Дача кликер",
+  "description": "Сажай морковь, собирай урожай и развивай свою ферму!",
+  "version": "1.0.0",
+  "orientation": "portrait",
+  "fullscreen": true,
+  "language": "ru",
+  "categories": ["casual", "clicker"],
+  "age_rating": "0+",
+  "screenshots": [],
+  "icon": "icons/icon-512.png"
+}
